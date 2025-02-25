@@ -5,12 +5,12 @@ import systems.comodal.jsoniter.JsonIterator;
 
 import static systems.comodal.jsoniter.JsonIterator.fieldEquals;
 
-public record ProgramAccountConfig(String name,
+public record DynamicAccountConfig(String name,
                                    int index,
                                    boolean writable,
                                    boolean signer) {
 
-  public static ProgramAccountConfig parseConfig(final JsonIterator ji) {
+  public static DynamicAccountConfig parseConfig(final JsonIterator ji) {
     final var parser = new Parser();
     ji.testObject(parser);
     return parser.create();
@@ -26,8 +26,8 @@ public record ProgramAccountConfig(String name,
     private Parser() {
     }
 
-    private ProgramAccountConfig create() {
-      return new ProgramAccountConfig(name, index, writable, signer);
+    private DynamicAccountConfig create() {
+      return new DynamicAccountConfig(name, index, writable, signer);
     }
 
     @Override

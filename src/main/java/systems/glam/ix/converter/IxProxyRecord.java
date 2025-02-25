@@ -7,16 +7,16 @@ import software.sava.core.tx.Instruction;
 import java.util.Arrays;
 import java.util.List;
 
-record IxProxyRecord(Discriminator srcDiscriminator,
-                     Discriminator dstDiscriminator,
-                     List<IndexedAccountMeta> programAccounts,
-                     List<IndexedAccountMeta> newAccounts,
-                     int[] indexes,
-                     int numAccounts) implements IxProxy {
+record IxProxyRecord<A>(Discriminator srcDiscriminator,
+                        Discriminator dstDiscriminator,
+                        List<DynamicAccount<A>> dynamicAccounts,
+                        List<IndexedAccountMeta> staticAccounts,
+                        int[] indexes,
+                        int numAccounts) implements IxProxy<A> {
 
 
   @Override
-  public Instruction mapInstruction(final AccountMeta invokedProgram, final Instruction instruction) {
+  public Instruction mapInstruction(final AccountMeta invokedProgram, final A runtimeAccounts, final Instruction instruction) {
     final int discriminatorLength = srcDiscriminator.length();
     final int glamDiscriminatorLength = dstDiscriminator.length();
     final int lengthDelta = glamDiscriminatorLength - discriminatorLength;
@@ -35,10 +35,10 @@ record IxProxyRecord(Discriminator srcDiscriminator,
     dstDiscriminator.write(data, 0);
 
     final var mappedAccounts = new AccountMeta[numAccounts];
-    for (final var programAccountMeta : programAccounts) {
-      programAccountMeta.setAccount(mappedAccounts);
+    for (final var programAccountMeta : dynamicAccounts) {
+      programAccountMeta.setAccount(mappedAccounts, runtimeAccounts);
     }
-    for (final var indexedAccountMeta : newAccounts) {
+    for (final var indexedAccountMeta : staticAccounts) {
       indexedAccountMeta.setAccount(mappedAccounts);
     }
 

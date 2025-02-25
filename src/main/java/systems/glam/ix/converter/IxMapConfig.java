@@ -14,8 +14,8 @@ public record IxMapConfig(String srcIxName,
                           Discriminator srcDiscriminator,
                           String dstIxName,
                           Discriminator dstDiscriminator,
-                          List<ProgramAccountConfig> programAccounts,
-                          List<IndexedAccountMeta> newAccounts,
+                          List<DynamicAccountConfig> dynamicAccounts,
+                          List<IndexedAccountMeta> staticAccounts,
                           int[] indexMap) {
 
   public static IxMapConfig parseConfig(final JsonIterator ji) {
@@ -24,12 +24,12 @@ public record IxMapConfig(String srcIxName,
     return parser.create();
   }
 
-  public IxProxy createProxy(final Function<ProgramAccountConfig, IndexedAccountMeta> accountMetaFactory) {
+  public <A> IxProxy<A> createProxy(final Function<DynamicAccountConfig, DynamicAccount<A>> accountMetaFactory) {
     return IxProxy.createProxy(
         srcDiscriminator,
         dstDiscriminator,
-        programAccounts.stream().map(accountMetaFactory).toList(),
-        newAccounts,
+        dynamicAccounts.stream().map(accountMetaFactory).toList(),
+        staticAccounts,
         indexMap
     );
   }
@@ -43,8 +43,8 @@ public record IxMapConfig(String srcIxName,
     private Discriminator srcDiscriminator;
     private String dstIxName;
     private Discriminator dstDiscriminator;
-    private List<ProgramAccountConfig> programAccounts;
-    private List<IndexedAccountMeta> newAccounts;
+    private List<DynamicAccountConfig> dynamicAccounts;
+    private List<IndexedAccountMeta> staticAccounts;
     private int[] indexMap;
 
     private Parser() {
@@ -56,8 +56,8 @@ public record IxMapConfig(String srcIxName,
           srcDiscriminator,
           dstIxName,
           dstDiscriminator,
-          programAccounts,
-          newAccounts == null ? NO_NEW_ACCOUNTS : newAccounts,
+          dynamicAccounts,
+          staticAccounts == null ? NO_NEW_ACCOUNTS : staticAccounts,
           indexMap == null ? NO_INDEX_MAP : indexMap
       );
     }
@@ -87,26 +87,34 @@ public record IxMapConfig(String srcIxName,
         dstIxName = ji.readString();
       } else if (fieldEquals("glam_ix_discriminator", buf, offset, len)) {
         dstDiscriminator = parseDiscriminator(ji);
-      } else if (fieldEquals("glam_accounts", buf, offset, len)) {
-        final var programAccounts = new ArrayList<ProgramAccountConfig>();
+      } else if (fieldEquals("dynamic_accounts", buf, offset, len)) {
+        final var programAccounts = new ArrayList<DynamicAccountConfig>();
         while (ji.readArray()) {
-          programAccounts.add(ProgramAccountConfig.parseConfig(ji));
+          programAccounts.add(DynamicAccountConfig.parseConfig(ji));
         }
-        this.programAccounts = programAccounts;
-      } else if (fieldEquals("new_accounts", buf, offset, len)) {
+        this.dynamicAccounts = programAccounts;
+      } else if (fieldEquals("static_accounts", buf, offset, len)) {
         final var newAccounts = new ArrayList<IndexedAccountMeta>();
         while (ji.readArray()) {
           newAccounts.add(IndexedAccountMeta.parseConfig(ji));
         }
-        this.newAccounts = newAccounts;
+        this.staticAccounts = newAccounts.isEmpty() ? NO_NEW_ACCOUNTS : newAccounts;
       } else if (fieldEquals("index_map", buf, offset, len)) {
-        final var indexMap = new ArrayList<Integer>();
-        while (ji.readArray()) {
-          ji.skipObjField();
-          indexMap.add(ji.readInt());
-          ji.closeObj();
+        int i = 0;
+        final int mark = ji.mark();
+        for (; ji.readArray(); ++i) {
+          ji.skip();
         }
-        this.indexMap = indexMap.isEmpty() ? NO_INDEX_MAP : indexMap.stream().mapToInt(i -> i).toArray();
+        if (i > 0) {
+          ji.reset(mark);
+          final int[] indexMap = new int[i];
+          for (i = 0; ji.readArray(); ++i) {
+            indexMap[i] = ji.readInt();
+          }
+          this.indexMap = indexMap;
+        } else {
+          this.indexMap = NO_INDEX_MAP;
+        }
       } else {
         throw new IllegalStateException("Unknown IxMapConfig field " + new String(buf, offset, len));
       }
