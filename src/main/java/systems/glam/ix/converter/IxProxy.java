@@ -7,23 +7,23 @@ import software.sava.core.tx.Instruction;
 import java.util.List;
 import java.util.stream.IntStream;
 
-public interface IxProxy<A extends ProgramAccounts<A>> {
+public interface IxProxy {
 
-  static <A extends ProgramAccounts<A>> IxProxy<A> createProxy(final Discriminator discriminator,
-                                                               final Discriminator glamDiscriminator,
-                                                               final List<DynamicAccountMeta<A>> newDynamicAccounts,
-                                                               final List<IndexedAccountMeta> newAccounts,
-                                                               final int[] indexes) {
+  static IxProxy createProxy(final Discriminator discriminator,
+                             final Discriminator glamDiscriminator,
+                             final List<IndexedAccountMeta> programAccounts,
+                             final List<IndexedAccountMeta> newAccounts,
+                             final int[] indexes) {
     final int numRemoved = (int) IntStream.of(indexes).filter(i -> i < 0).count();
-    return new IxProxyRecord<>(
+    return new IxProxyRecord(
         discriminator,
         glamDiscriminator,
-        newDynamicAccounts,
+        programAccounts,
         newAccounts,
         indexes,
-        newDynamicAccounts.size() + newAccounts.size() + (indexes.length - numRemoved)
+        programAccounts.size() + newAccounts.size() + (indexes.length - numRemoved)
     );
   }
 
-  Instruction mapInstruction(final AccountMeta invokedProgram, final A programAccounts, final Instruction instruction);
+  Instruction mapInstruction(final AccountMeta invokedProgram, final Instruction instruction);
 }

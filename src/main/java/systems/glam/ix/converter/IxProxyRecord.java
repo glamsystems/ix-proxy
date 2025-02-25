@@ -7,18 +7,16 @@ import software.sava.core.tx.Instruction;
 import java.util.Arrays;
 import java.util.List;
 
-record IxProxyRecord<A extends ProgramAccounts<A>>(Discriminator srcDiscriminator,
-                                                   Discriminator dstDiscriminator,
-                                                   List<DynamicAccountMeta<A>> newDynamicAccounts,
-                                                   List<IndexedAccountMeta> newAccounts,
-                                                   int[] indexes,
-                                                   int numAccounts) implements IxProxy<A> {
+record IxProxyRecord(Discriminator srcDiscriminator,
+                     Discriminator dstDiscriminator,
+                     List<IndexedAccountMeta> programAccounts,
+                     List<IndexedAccountMeta> newAccounts,
+                     int[] indexes,
+                     int numAccounts) implements IxProxy {
 
 
   @Override
-  public Instruction mapInstruction(final AccountMeta invokedProgram,
-                                    final A programAccounts,
-                                    final Instruction instruction) {
+  public Instruction mapInstruction(final AccountMeta invokedProgram, final Instruction instruction) {
     final int discriminatorLength = srcDiscriminator.length();
     final int glamDiscriminatorLength = dstDiscriminator.length();
     final int lengthDelta = glamDiscriminatorLength - discriminatorLength;
@@ -37,8 +35,8 @@ record IxProxyRecord<A extends ProgramAccounts<A>>(Discriminator srcDiscriminato
     dstDiscriminator.write(data, 0);
 
     final var mappedAccounts = new AccountMeta[numAccounts];
-    for (final var dynamicAccountMeta : newDynamicAccounts) {
-      dynamicAccountMeta.setAccount(mappedAccounts, programAccounts);
+    for (final var programAccountMeta : programAccounts) {
+      programAccountMeta.setAccount(mappedAccounts);
     }
     for (final var indexedAccountMeta : newAccounts) {
       indexedAccountMeta.setAccount(mappedAccounts);

@@ -24,7 +24,7 @@ public record IxMapConfig(String srcIxName,
     return parser.create();
   }
 
-  public <A extends ProgramAccounts<A>> IxProxy<A> createProxy(final Function<ProgramAccountConfig, DynamicAccountMeta<A>> accountMetaFactory) {
+  public IxProxy createProxy(final Function<ProgramAccountConfig, IndexedAccountMeta> accountMetaFactory) {
     return IxProxy.createProxy(
         srcDiscriminator,
         dstDiscriminator,
