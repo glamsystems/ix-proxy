@@ -1,0 +1,117 @@
+ext {
+  VERSION = project.findProperty('version')
+  VCS_URL = 'https://github.com/glamsystems/ix-converter'
+}
+
+apply plugin: 'java-library'
+apply plugin: 'maven-publish'
+
+project.group = 'systems.glam'
+project.version = "$VERSION"
+
+final JLV = JavaLanguageVersion.of(project.findProperty('javaVersion') as Integer ?: 23)
+final GPR_USER = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+final GPR_TOKEN = project.findProperty("gpr.token") ?: System.getenv("GITHUB_TOKEN")
+
+plugins.withType(JavaPlugin).configureEach {
+  java {
+    modularity.inferModulePath = true
+    toolchain {
+      languageVersion = JLV
+    }
+  }
+}
+
+repositories {
+  maven {
+    url = "https://maven.pkg.github.com/comodal/json-iterator"
+    credentials {
+      username = GPR_USER
+      password = GPR_TOKEN
+    }
+  }
+  maven {
+    url = "https://maven.pkg.github.com/sava-software/sava"
+    credentials {
+      username = GPR_USER
+      password = GPR_TOKEN
+    }
+  }
+  mavenCentral()
+}
+
+dependencies {
+  implementation libs.bouncycastle
+  implementation libs.json.iterator
+  implementation libs.sava.core
+
+  testImplementation libs.junit.jupiter
+  testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+  useJUnitPlatform()
+  testLogging {
+    events "passed", "skipped", "failed", "standardOut", "standardError"
+    exceptionFormat = "full"
+    showStandardStreams = true
+  }
+}
+
+tasks.withType(Javadoc).configureEach {
+  options.addStringOption('Xdoclint:none', '-quiet')
+}
+
+java {
+  withJavadocJar()
+  withSourcesJar()
+}
+
+publishing {
+  publications {
+    mavenJava(MavenPublication) {
+      from components.java
+
+      groupId = project.group
+      artifactId = project.name
+      version = project.version
+
+      pom {
+        name = project.name
+        description = "Converts Solana instructions to GLAM program instructions."
+        url = "$VCS_URL"
+        licenses {
+          license {
+            name = 'Apache-2.0'
+            url = 'https://github.com/glamsystems/ix-converter/blob/main/LICENSE'
+          }
+        }
+        developers {
+          developer {
+            name = 'Jim'
+            id = 'jpe7s'
+            email = 'jpe7s.salt188@passfwd.com'
+            organization = 'GLAM Systems'
+            organizationUrl = 'https://github.com/glamsystems'
+          }
+        }
+        scm {
+          connection = 'scm:git:git@github.com:glamsystems/ix-converter.git'
+          developerConnection = 'scm:git:ssh@github.com:glamsystems/ix-converter.git'
+          url = "$VCS_URL"
+        }
+      }
+    }
+  }
+
+  repositories {
+    maven {
+      name = "GitHubPackages"
+      url = "https://maven.pkg.github.com/glamsystems/ix-converter"
+      credentials {
+        username = System.getenv("GITHUB_ACTOR") ?: project.findProperty("gpr.user.write")
+        password = System.getenv("GITHUB_TOKEN") ?: project.findProperty("gpr.token.write")
+      }
+    }
+  }
+}
