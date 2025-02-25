@@ -1,4 +1,4 @@
-module software.sava.ix_converter {
+module systems.glam.ix_converter {
   requires java.net.http;
 
   requires systems.comodal.json_iterator;
