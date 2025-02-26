@@ -1,5 +1,7 @@
 package systems.glam.ix.converter;
 
+import software.sava.core.accounts.PublicKey;
+import software.sava.core.accounts.meta.AccountMeta;
 import systems.comodal.jsoniter.FieldBufferPredicate;
 import systems.comodal.jsoniter.JsonIterator;
 
@@ -14,6 +16,10 @@ public record DynamicAccountConfig(String name,
     final var parser = new Parser();
     ji.testObject(parser);
     return parser.create();
+  }
+
+  public AccountMeta createMeta(final PublicKey publicKey) {
+    return IndexedAccountMeta.createMeta(publicKey, writable, signer);
   }
 
   private static final class Parser implements FieldBufferPredicate {

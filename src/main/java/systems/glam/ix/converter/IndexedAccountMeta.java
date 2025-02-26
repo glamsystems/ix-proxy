@@ -19,6 +19,18 @@ public record IndexedAccountMeta(AccountMeta accountMeta, int index) {
     return parser.create();
   }
 
+  public static AccountMeta createMeta(final PublicKey account, final boolean writable, final boolean signer) {
+    if (signer) {
+      return writable
+          ? AccountMeta.createWritableSigner(account)
+          : AccountMeta.createReadOnlySigner(account);
+    } else if (writable) {
+      return AccountMeta.createWrite(account);
+    } else {
+      return AccountMeta.createRead(account);
+    }
+  }
+
   private static final class Parser implements FieldBufferPredicate {
 
     private PublicKey account;
@@ -30,16 +42,7 @@ public record IndexedAccountMeta(AccountMeta accountMeta, int index) {
     }
 
     private IndexedAccountMeta create() {
-      final AccountMeta accountMeta;
-      if (signer) {
-        accountMeta = writable
-            ? AccountMeta.createWritableSigner(account)
-            : AccountMeta.createReadOnlySigner(account);
-      } else if (writable) {
-        accountMeta = AccountMeta.createWrite(account);
-      } else {
-        accountMeta = AccountMeta.createRead(account);
-      }
+      final var accountMeta = createMeta(account, writable, signer);
       return new IndexedAccountMeta(accountMeta, index);
     }
 
