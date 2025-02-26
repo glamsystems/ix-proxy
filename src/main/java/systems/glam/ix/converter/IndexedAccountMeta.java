@@ -46,7 +46,7 @@ public record IndexedAccountMeta(AccountMeta accountMeta, int index) {
     @Override
     public boolean test(final char[] buf, final int offset, final int len, final JsonIterator ji) {
       if (fieldEquals("account", buf, offset, len)) {
-        account = PublicKey.fromBase58Encoded(ji.readString());
+        account = PublicKey.fromBase58Encoded(buf, offset, len);
       } else if (fieldEquals("index", buf, offset, len)) {
         index = ji.readInt();
       } else if (fieldEquals("writable", buf, offset, len)) {
