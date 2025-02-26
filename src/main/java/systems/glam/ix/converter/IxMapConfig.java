@@ -79,13 +79,13 @@ public record IxMapConfig(String srcIxName,
 
     @Override
     public boolean test(final char[] buf, final int offset, final int len, final JsonIterator ji) {
-      if (fieldEquals("ix_name", buf, offset, len)) {
+      if (fieldEquals("src_ix_name", buf, offset, len)) {
         srcIxName = ji.readString();
-      } else if (fieldEquals("ix_discriminator", buf, offset, len)) {
+      } else if (fieldEquals("src_discriminator", buf, offset, len)) {
         srcDiscriminator = parseDiscriminator(ji);
-      } else if (fieldEquals("glam_ix_name", buf, offset, len)) {
+      } else if (fieldEquals("dst_ix_name", buf, offset, len)) {
         dstIxName = ji.readString();
-      } else if (fieldEquals("glam_ix_discriminator", buf, offset, len)) {
+      } else if (fieldEquals("dst_discriminator", buf, offset, len)) {
         dstDiscriminator = parseDiscriminator(ji);
       } else if (fieldEquals("dynamic_accounts", buf, offset, len)) {
         final var programAccounts = new ArrayList<DynamicAccountConfig>();
