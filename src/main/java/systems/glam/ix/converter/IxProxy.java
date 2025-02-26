@@ -25,5 +25,8 @@ public interface IxProxy<A> {
     );
   }
 
-  Instruction mapInstruction(final AccountMeta invokedProgram, final A runtimeAccounts, final Instruction instruction);
+  Instruction mapInstruction(final AccountMeta invokedProgram,
+                             final AccountMeta feePayer,
+                             final A runtimeAccounts,
+                             final Instruction instruction);
 }

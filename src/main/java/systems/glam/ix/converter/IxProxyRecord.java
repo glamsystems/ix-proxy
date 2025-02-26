@@ -16,7 +16,10 @@ record IxProxyRecord<A>(Discriminator srcDiscriminator,
 
 
   @Override
-  public Instruction mapInstruction(final AccountMeta invokedProgram, final A runtimeAccounts, final Instruction instruction) {
+  public Instruction mapInstruction(final AccountMeta invokedProgram,
+                                    final AccountMeta feePayer,
+                                    final A runtimeAccounts,
+                                    final Instruction instruction) {
     final int discriminatorLength = srcDiscriminator.length();
     final int glamDiscriminatorLength = dstDiscriminator.length();
     final int lengthDelta = glamDiscriminatorLength - discriminatorLength;
@@ -36,7 +39,7 @@ record IxProxyRecord<A>(Discriminator srcDiscriminator,
 
     final var mappedAccounts = new AccountMeta[numAccounts];
     for (final var programAccountMeta : dynamicAccounts) {
-      programAccountMeta.setAccount(mappedAccounts, runtimeAccounts);
+      programAccountMeta.setAccount(mappedAccounts, feePayer, runtimeAccounts);
     }
     for (final var indexedAccountMeta : staticAccounts) {
       indexedAccountMeta.setAccount(mappedAccounts);
