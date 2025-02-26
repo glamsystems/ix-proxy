@@ -9,15 +9,15 @@ import java.util.stream.IntStream;
 
 public interface IxProxy<A> {
 
-  static <A> IxProxy<A> createProxy(final Discriminator discriminator,
-                                    final Discriminator glamDiscriminator,
+  static <A> IxProxy<A> createProxy(final Discriminator srcDiscriminator,
+                                    final Discriminator dstDiscriminator,
                                     final List<DynamicAccount<A>> dynamicAccounts,
                                     final List<IndexedAccountMeta> staticAccounts,
                                     final int[] indexes) {
     final int numRemoved = (int) IntStream.of(indexes).filter(i -> i < 0).count();
     return new IxProxyRecord<>(
-        discriminator,
-        glamDiscriminator,
+        srcDiscriminator,
+        dstDiscriminator,
         dynamicAccounts,
         staticAccounts,
         indexes,
@@ -29,4 +29,8 @@ public interface IxProxy<A> {
                              final AccountMeta feePayer,
                              final A runtimeAccounts,
                              final Instruction instruction);
+
+  Discriminator srcDiscriminator();
+
+  Discriminator dstDiscriminator();
 }
