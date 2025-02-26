@@ -22,6 +22,18 @@ public record DynamicAccountConfig(String name,
     return IndexedAccountMeta.createMeta(publicKey, writable, signer);
   }
 
+  public <A> DynamicAccount<A> createDynamicAccount(final PublicKey account) {
+    return (mappedAccounts, _, _) -> mappedAccounts[index] = IndexedAccountMeta.createMeta(account, writable, signer);
+  }
+
+  public <A> DynamicAccount<A> createFeePayerAccount() {
+    return (mappedAccounts, feePayer, _) -> mappedAccounts[index] = feePayer;
+  }
+
+  public <A> DynamicAccount<A> createDynamicAccount(final AccountMeta account) {
+    return (mappedAccounts, _, _) -> mappedAccounts[index] = account;
+  }
+
   private static final class Parser implements FieldBufferPredicate {
 
     private String name;

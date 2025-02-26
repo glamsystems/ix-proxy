@@ -6,6 +6,7 @@ import systems.comodal.jsoniter.FieldBufferPredicate;
 import systems.comodal.jsoniter.JsonIterator;
 
 import static systems.comodal.jsoniter.JsonIterator.fieldEquals;
+import static systems.glam.ix.converter.ProgramMapConfig.PARSE_BASE58_PUBLIC_KEY;
 
 public record IndexedAccountMeta(AccountMeta accountMeta, int index) {
 
@@ -49,7 +50,7 @@ public record IndexedAccountMeta(AccountMeta accountMeta, int index) {
     @Override
     public boolean test(final char[] buf, final int offset, final int len, final JsonIterator ji) {
       if (fieldEquals("account", buf, offset, len)) {
-        account = PublicKey.fromBase58Encoded(buf, offset, len);
+        account = ji.applyChars(PARSE_BASE58_PUBLIC_KEY);
       } else if (fieldEquals("index", buf, offset, len)) {
         index = ji.readInt();
       } else if (fieldEquals("writable", buf, offset, len)) {
