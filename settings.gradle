@@ -1,3 +1,5 @@
+rootProject.name = 'ix-proxy'
+
 def gprUser = providers.gradleProperty("gpr.user")
 def gprToken = providers.gradleProperty("gpr.token")
 
@@ -18,7 +20,7 @@ dependencyResolutionManagement {
   }
   versionCatalogs {
     libs {
-      from("software.sava:solana-version-catalog:0.5.50")
+      from("software.sava:solana-version-catalog:0.5.54")
     }
   }
 }

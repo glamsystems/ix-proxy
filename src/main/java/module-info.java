@@ -1,4 +1,4 @@
-module systems.glam.ix_converter {
+module systems.glam.ix_proxy {
   requires java.net.http;
 
   requires systems.comodal.json_iterator;

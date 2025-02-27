@@ -30,6 +30,12 @@ public interface IxProxy<A> {
                              final A runtimeAccounts,
                              final Instruction instruction);
 
+  default Instruction mapInstruction(final AccountMeta feePayer,
+                                     final A runtimeAccounts,
+                                     final Instruction instruction) {
+    return mapInstruction(instruction.programId(), feePayer, runtimeAccounts, instruction);
+  }
+
   Discriminator srcDiscriminator();
 
   Discriminator dstDiscriminator();

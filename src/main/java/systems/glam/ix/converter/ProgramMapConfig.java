@@ -10,7 +10,13 @@ import java.util.List;
 
 import static systems.comodal.jsoniter.JsonIterator.fieldEquals;
 
-public record ProgramMapConfig(PublicKey program, List<IxMapConfig> ixMapConfigs) {
+public record ProgramMapConfig(PublicKey program,
+                               List<IxMapConfig> ixMapConfigs,
+                               int discriminatorLength) {
+
+  public boolean fixedLengthDiscriminator() {
+    return discriminatorLength() > 0;
+  }
 
   static CharBufferFunction<PublicKey> PARSE_BASE58_PUBLIC_KEY = PublicKey::fromBase58Encoded;
 
@@ -24,12 +30,13 @@ public record ProgramMapConfig(PublicKey program, List<IxMapConfig> ixMapConfigs
 
     private PublicKey program;
     private List<IxMapConfig> ixMapConfigs;
+    private int discriminatorLength = -1;
 
     private Parser() {
     }
 
     private ProgramMapConfig create() {
-      return new ProgramMapConfig(program, ixMapConfigs);
+      return new ProgramMapConfig(program, ixMapConfigs, discriminatorLength);
     }
 
     @Override

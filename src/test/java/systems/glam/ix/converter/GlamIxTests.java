@@ -493,11 +493,12 @@ final class GlamIxTests {
 
     final var ixMapConfigs = programMapConfig.ixMapConfigs();
 
-    record GlamVaultAccounts(AccountMeta readGlamState, AccountMeta readGlamVault,
-                             AccountMeta writeGlamState, AccountMeta writeGlamVault) {
+    record GlamVaultAccounts(AccountMeta readGlamState,
+                             AccountMeta writeGlamState,
+                             AccountMeta readGlamVault,
+                             AccountMeta writeGlamVault) {
 
     }
-
 
     final var ixProxies = HashMap.<Discriminator, IxProxy<GlamVaultAccounts>>newHashMap(ixMapConfigs.size());
 
