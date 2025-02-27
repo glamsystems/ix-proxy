@@ -1,4 +1,4 @@
-package systems.glam.ix.converter;
+package systems.glam.ix.proxy;
 
 import org.junit.jupiter.api.Test;
 import software.sava.core.accounts.meta.AccountMeta;

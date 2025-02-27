@@ -1,6 +1,6 @@
 ext {
   VERSION = project.findProperty('version')
-  VCS_URL = 'https://github.com/glamsystems/ix-converter'
+  VCS_URL = 'https://github.com/glamsystems/ix-proxy'
 }
 
 apply plugin: 'java-library'
@@ -83,7 +83,7 @@ publishing {
         licenses {
           license {
             name = 'Apache-2.0'
-            url = 'https://github.com/glamsystems/ix-converter/blob/main/LICENSE'
+            url = 'https://github.com/glamsystems/ix-proxy/blob/main/LICENSE'
           }
         }
         developers {
@@ -96,8 +96,8 @@ publishing {
           }
         }
         scm {
-          connection = 'scm:git:git@github.com:glamsystems/ix-converter.git'
-          developerConnection = 'scm:git:ssh@github.com:glamsystems/ix-converter.git'
+          connection = 'scm:git:git@github.com:glamsystems/ix-proxy.git'
+          developerConnection = 'scm:git:ssh@github.com:glamsystems/ix-proxy.git'
           url = "$VCS_URL"
         }
       }
@@ -107,7 +107,7 @@ publishing {
   repositories {
     maven {
       name = "GitHubPackages"
-      url = "https://maven.pkg.github.com/glamsystems/ix-converter"
+      url = "https://maven.pkg.github.com/glamsystems/ix-proxy"
       credentials {
         username = System.getenv("GITHUB_ACTOR") ?: project.findProperty("gpr.user.write")
         password = System.getenv("GITHUB_TOKEN") ?: project.findProperty("gpr.token.write")

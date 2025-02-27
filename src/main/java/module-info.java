@@ -5,5 +5,5 @@ module systems.glam.ix_proxy {
 
   requires software.sava.core;
 
-  exports systems.glam.ix.converter;
+  exports systems.glam.ix.proxy;
 }

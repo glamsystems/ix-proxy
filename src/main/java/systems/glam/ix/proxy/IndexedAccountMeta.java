@@ -1,4 +1,4 @@
-package systems.glam.ix.converter;
+package systems.glam.ix.proxy;
 
 import software.sava.core.accounts.PublicKey;
 import software.sava.core.accounts.meta.AccountMeta;
@@ -6,7 +6,7 @@ import systems.comodal.jsoniter.FieldBufferPredicate;
 import systems.comodal.jsoniter.JsonIterator;
 
 import static systems.comodal.jsoniter.JsonIterator.fieldEquals;
-import static systems.glam.ix.converter.ProgramMapConfig.PARSE_BASE58_PUBLIC_KEY;
+import static systems.glam.ix.proxy.ProgramMapConfig.PARSE_BASE58_PUBLIC_KEY;
 
 public record IndexedAccountMeta(AccountMeta accountMeta, int index) {
 

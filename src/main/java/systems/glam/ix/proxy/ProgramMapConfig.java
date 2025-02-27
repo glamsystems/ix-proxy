@@ -1,4 +1,4 @@
-package systems.glam.ix.converter;
+package systems.glam.ix.proxy;
 
 import software.sava.core.accounts.PublicKey;
 import systems.comodal.jsoniter.CharBufferFunction;
