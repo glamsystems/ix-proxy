@@ -5,7 +5,6 @@ import software.sava.core.programs.Discriminator;
 import software.sava.core.tx.Instruction;
 
 import java.util.List;
-import java.util.stream.IntStream;
 
 public interface IxProxy<A> {
 
@@ -14,7 +13,12 @@ public interface IxProxy<A> {
                                     final List<DynamicAccount<A>> dynamicAccounts,
                                     final List<IndexedAccountMeta> staticAccounts,
                                     final int[] indexes) {
-    final int numRemoved = (int) IntStream.of(indexes).filter(i -> i < 0).count();
+    int numRemoved = 0;
+    for (final int index : indexes) {
+      if (index < 0) {
+        ++numRemoved;
+      }
+    }
     return new IxProxyRecord<>(
         srcDiscriminator,
         dstDiscriminator,

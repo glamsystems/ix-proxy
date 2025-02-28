@@ -1,6 +1,7 @@
 package systems.glam.ix.proxy;
 
 import software.sava.core.accounts.PublicKey;
+import software.sava.core.accounts.meta.AccountMeta;
 import systems.comodal.jsoniter.CharBufferFunction;
 import systems.comodal.jsoniter.FieldBufferPredicate;
 import systems.comodal.jsoniter.JsonIterator;
@@ -10,12 +11,16 @@ import java.util.List;
 
 import static systems.comodal.jsoniter.JsonIterator.fieldEquals;
 
-public record ProgramMapConfig(PublicKey program,
+public record ProgramMapConfig(AccountMeta readProgram,
                                List<IxMapConfig> ixMapConfigs,
                                int discriminatorLength) {
 
+  public PublicKey program() {
+    return readProgram.publicKey();
+  }
+
   public boolean fixedLengthDiscriminator() {
-    return discriminatorLength() > 0;
+    return discriminatorLength > 0;
   }
 
   static CharBufferFunction<PublicKey> PARSE_BASE58_PUBLIC_KEY = PublicKey::fromBase58Encoded;
@@ -30,19 +35,33 @@ public record ProgramMapConfig(PublicKey program,
 
     private PublicKey program;
     private List<IxMapConfig> ixMapConfigs;
-    private int discriminatorLength = -1;
 
     private Parser() {
     }
 
     private ProgramMapConfig create() {
-      return new ProgramMapConfig(program, ixMapConfigs, discriminatorLength);
+      final var readProgram = AccountMeta.createRead(program);
+      if (ixMapConfigs.isEmpty()) {
+        return new ProgramMapConfig(readProgram, ixMapConfigs, 0);
+      } else {
+        final var iterator = ixMapConfigs.iterator();
+        var ixMapConfig = iterator.next();
+        int discriminatorLength = ixMapConfig.dstDiscriminator().length();
+        while (iterator.hasNext()) {
+          ixMapConfig = iterator.next();
+          final int len = ixMapConfig.dstDiscriminator().length();
+          if (len != discriminatorLength) {
+            return new ProgramMapConfig(readProgram, ixMapConfigs, -1);
+          }
+        }
+        return new ProgramMapConfig(readProgram, ixMapConfigs, discriminatorLength);
+      }
     }
 
     @Override
     public boolean test(final char[] buf, final int offset, final int len, final JsonIterator ji) {
       if (fieldEquals("program_id", buf, offset, len)) {
-        program = ji.applyChars(PARSE_BASE58_PUBLIC_KEY);
+        this.program = ji.applyChars(PARSE_BASE58_PUBLIC_KEY);
       } else if (fieldEquals("instructions", buf, offset, len)) {
         final var ixMapConfigs = new ArrayList<IxMapConfig>();
         while (ji.readArray()) {
