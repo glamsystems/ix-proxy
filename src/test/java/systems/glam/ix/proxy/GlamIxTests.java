@@ -1,6 +1,7 @@
 package systems.glam.ix.proxy;
 
 import org.junit.jupiter.api.Test;
+import software.sava.core.accounts.PublicKey;
 import software.sava.core.accounts.meta.AccountMeta;
 import software.sava.core.programs.Discriminator;
 import systems.comodal.jsoniter.JsonIterator;
@@ -485,11 +486,11 @@ final class GlamIxTests {
           ]
         }""";
 
+    final var invokedProxyProgram = AccountMeta.createInvoked(PublicKey.NONE);
     final var ji = JsonIterator.parse(mappingJson);
 
     final var programMapConfig = ProgramMapConfig.parseConfig(ji);
-    final var program = programMapConfig.program();
-    final var programAccountMeta = AccountMeta.createRead(program);
+    final var readCpiProgram = AccountMeta.createRead(programMapConfig.program());
 
     final var ixMapConfigs = programMapConfig.ixMapConfigs();
 
@@ -507,18 +508,18 @@ final class GlamIxTests {
         final int index = accountConfig.index();
         final boolean w = accountConfig.writable();
         return switch (accountConfig.name()) {
-          case "glam_state" -> (mappedAccounts, _, vaultAccounts) -> mappedAccounts[index] = w
+          case "glam_state" -> (mappedAccounts, _, _, vaultAccounts) -> mappedAccounts[index] = w
               ? vaultAccounts.writeGlamState() : vaultAccounts.readGlamState();
-          case "glam_vault" -> (mappedAccounts, _, vaultAccounts) -> mappedAccounts[index] = w
+          case "glam_vault" -> (mappedAccounts, _, _, vaultAccounts) -> mappedAccounts[index] = w
               ? vaultAccounts.writeGlamVault() : vaultAccounts.readGlamVault();
           case "glam_signer" -> accountConfig.createFeePayerAccount();
-          case "cpi_program" -> accountConfig.createDynamicAccount(programAccountMeta);
+          case "cpi_program" -> accountConfig.createReadCpiProgram();
           default -> throw new IllegalStateException("Unknown dynamic account type: " + accountConfig.name());
         };
       };
 
       final var srcDiscriminator = ixMapConfig.srcDiscriminator();
-      final var ixProxy = ixMapConfig.createProxy(dynamicAccountFactory);
+      final var ixProxy = ixMapConfig.createProxy(readCpiProgram, invokedProxyProgram, dynamicAccountFactory);
       ixProxies.put(srcDiscriminator, ixProxy);
     }
 

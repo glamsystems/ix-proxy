@@ -23,15 +23,15 @@ public record DynamicAccountConfig(String name,
   }
 
   public <A> DynamicAccount<A> createDynamicAccount(final PublicKey account) {
-    return (mappedAccounts, _, _) -> mappedAccounts[index] = IndexedAccountMeta.createMeta(account, writable, signer);
+    return (mappedAccounts, _, _, _) -> mappedAccounts[index] = IndexedAccountMeta.createMeta(account, writable, signer);
   }
 
   public <A> DynamicAccount<A> createFeePayerAccount() {
-    return (mappedAccounts, feePayer, _) -> mappedAccounts[index] = feePayer;
+    return (mappedAccounts, _, feePayer, _) -> mappedAccounts[index] = feePayer;
   }
 
-  public <A> DynamicAccount<A> createDynamicAccount(final AccountMeta account) {
-    return (mappedAccounts, _, _) -> mappedAccounts[index] = account;
+  public <A> DynamicAccount<A> createReadCpiProgram() {
+    return (mappedAccounts, cpiProgram, _, _) -> mappedAccounts[index] = cpiProgram;
   }
 
   private static final class Parser implements FieldBufferPredicate {

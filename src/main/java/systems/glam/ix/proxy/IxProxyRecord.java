@@ -5,9 +5,12 @@ import software.sava.core.programs.Discriminator;
 import software.sava.core.tx.Instruction;
 
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 
-record IxProxyRecord<A>(Discriminator srcDiscriminator,
+record IxProxyRecord<A>(AccountMeta readCpiProgram,
+                        AccountMeta invokedProxyProgram,
+                        Discriminator srcDiscriminator,
                         byte[] srcDiscriminatorBytes,
                         Discriminator dstDiscriminator,
                         List<DynamicAccount<A>> dynamicAccounts,
@@ -16,33 +19,59 @@ record IxProxyRecord<A>(Discriminator srcDiscriminator,
                         int numAccounts) implements IxProxy<A> {
 
   @Override
-  public Instruction mapInstruction(final AccountMeta invokedProgram,
-                                    final AccountMeta feePayer,
+  public Instruction mapInstruction(final AccountMeta feePayer,
                                     final A runtimeAccounts,
                                     final Instruction instruction) {
-    final int discriminatorLength = srcDiscriminator.length();
-    final int glamDiscriminatorLength = dstDiscriminator.length();
-    final int lengthDelta = glamDiscriminatorLength - discriminatorLength;
-    final int dataLength = instruction.len();
+    if (!instruction.programId().publicKey().equals(readCpiProgram.publicKey())) {
+      throw new IllegalStateException(String.format("""
+              Expected CPI program to be %s, but was %s for invoked proxy program %s.""",
+          readCpiProgram.publicKey(), instruction.programId().publicKey(), invokedProxyProgram.publicKey()
+      ));
+    }
+
+    final int srcDiscriminatorLength = srcDiscriminator.length();
+    if (srcDiscriminatorBytes.length != srcDiscriminatorLength) {
+      throw new IllegalStateException(String.format(
+          "Expected src discriminator length of %d, but was %d.",
+          srcDiscriminatorBytes.length, srcDiscriminatorLength
+      ));
+    }
+    final int srcDataLength = instruction.len();
+    final int srcDataOffset = instruction.offset();
+    final byte[] srcData = instruction.data();
+    if (!Arrays.equals(
+        srcData, srcDataOffset, srcDataOffset + srcDiscriminatorLength,
+        srcDiscriminatorBytes, 0, srcDiscriminatorLength
+    )) {
+      throw new IllegalStateException(String.format(
+          "Expected src discriminator %s, but was %s.",
+          Base64.getEncoder().encodeToString(srcDiscriminatorBytes),
+          Base64.getEncoder().encodeToString(Arrays.copyOfRange(srcData, srcDataOffset, srcDataOffset + srcDiscriminatorLength))
+      ));
+    }
+
+    final int dstDiscriminatorLength = dstDiscriminator.length();
+    final int lengthDelta = dstDiscriminatorLength - srcDiscriminatorLength;
+
     final byte[] data;
     if (lengthDelta == 0) {
-      data = new byte[dataLength];
-      System.arraycopy(instruction.data(), instruction.offset(), data, 0, dataLength);
+      data = new byte[srcDataLength];
+      System.arraycopy(srcData, srcDataOffset, data, 0, srcDataLength);
     } else {
-      data = new byte[dataLength + lengthDelta];
+      data = new byte[srcDataLength + lengthDelta];
       System.arraycopy(
-          instruction.data(), instruction.offset() + discriminatorLength,
-          data, discriminatorLength, dataLength - discriminatorLength
+          srcData, srcDataOffset + srcDiscriminatorLength,
+          data, srcDiscriminatorLength, srcDataLength - srcDiscriminatorLength
       );
     }
     dstDiscriminator.write(data, 0);
 
     final var mappedAccounts = new AccountMeta[numAccounts];
     for (final var programAccountMeta : dynamicAccounts) {
-      programAccountMeta.setAccount(mappedAccounts, feePayer, runtimeAccounts);
+      programAccountMeta.setAccount(mappedAccounts, readCpiProgram, feePayer, runtimeAccounts);
     }
-    for (final var indexedAccountMeta : staticAccounts) {
-      indexedAccountMeta.setAccount(mappedAccounts);
+    for (final var staticAccount : staticAccounts) {
+      staticAccount.setAccount(mappedAccounts);
     }
 
     final var accounts = instruction.accounts();
@@ -64,7 +93,7 @@ record IxProxyRecord<A>(Discriminator srcDiscriminator,
     }
 
     return Instruction.createInstruction(
-        invokedProgram,
+        invokedProxyProgram,
         Arrays.asList(mappedAccounts),
         data
     );

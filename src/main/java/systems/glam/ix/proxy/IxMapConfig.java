@@ -1,5 +1,6 @@
 package systems.glam.ix.proxy;
 
+import software.sava.core.accounts.meta.AccountMeta;
 import software.sava.core.programs.Discriminator;
 import systems.comodal.jsoniter.FieldBufferPredicate;
 import systems.comodal.jsoniter.JsonIterator;
@@ -24,8 +25,12 @@ public record IxMapConfig(String srcIxName,
     return parser.create();
   }
 
-  public <A> IxProxy<A> createProxy(final Function<DynamicAccountConfig, DynamicAccount<A>> accountMetaFactory) {
+  public <A> IxProxy<A> createProxy(final AccountMeta readCpiProgram,
+                                    final AccountMeta invokedProxyProgram,
+                                    final Function<DynamicAccountConfig, DynamicAccount<A>> accountMetaFactory) {
     return IxProxy.createProxy(
+        readCpiProgram,
+        invokedProxyProgram,
         srcDiscriminator,
         dstDiscriminator,
         dynamicAccounts.stream().map(accountMetaFactory).toList(),

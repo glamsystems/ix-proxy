@@ -8,7 +8,9 @@ import java.util.List;
 
 public interface IxProxy<A> {
 
-  static <A> IxProxy<A> createProxy(final Discriminator srcDiscriminator,
+  static <A> IxProxy<A> createProxy(final AccountMeta readCpiProgram,
+                                    final AccountMeta invokedProxyProgram,
+                                    final Discriminator srcDiscriminator,
                                     final Discriminator dstDiscriminator,
                                     final List<DynamicAccount<A>> dynamicAccounts,
                                     final List<IndexedAccountMeta> staticAccounts,
@@ -20,6 +22,8 @@ public interface IxProxy<A> {
       }
     }
     return new IxProxyRecord<>(
+        readCpiProgram,
+        invokedProxyProgram,
         srcDiscriminator,
         srcDiscriminator.data(),
         dstDiscriminator,
@@ -30,16 +34,9 @@ public interface IxProxy<A> {
     );
   }
 
-  Instruction mapInstruction(final AccountMeta invokedProgram,
-                             final AccountMeta feePayer,
+  Instruction mapInstruction(final AccountMeta feePayer,
                              final A runtimeAccounts,
                              final Instruction instruction);
-
-  default Instruction mapInstruction(final AccountMeta feePayer,
-                                     final A runtimeAccounts,
-                                     final Instruction instruction) {
-    return mapInstruction(instruction.programId(), feePayer, runtimeAccounts, instruction);
-  }
 
   Discriminator srcDiscriminator();
 
