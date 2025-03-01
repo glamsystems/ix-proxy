@@ -8,12 +8,12 @@ import java.util.Arrays;
 import java.util.List;
 
 record IxProxyRecord<A>(Discriminator srcDiscriminator,
+                        byte[] srcDiscriminatorBytes,
                         Discriminator dstDiscriminator,
                         List<DynamicAccount<A>> dynamicAccounts,
                         List<IndexedAccountMeta> staticAccounts,
                         int[] indexes,
                         int numAccounts) implements IxProxy<A> {
-
 
   @Override
   public Instruction mapInstruction(final AccountMeta invokedProgram,
@@ -68,5 +68,18 @@ record IxProxyRecord<A>(Discriminator srcDiscriminator,
         Arrays.asList(mappedAccounts),
         data
     );
+  }
+
+  @Override
+  public boolean matchesSrcDiscriminator(final byte[] instructionData, final int offset, final int length) {
+    final int discriminatorLength = srcDiscriminatorBytes.length;
+    if (discriminatorLength <= length) {
+      return Arrays.equals(
+          instructionData, offset, offset + discriminatorLength,
+          srcDiscriminatorBytes, 0, discriminatorLength
+      );
+    } else {
+      return false;
+    }
   }
 }

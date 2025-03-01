@@ -1,0 +1,24 @@
+package systems.glam.ix.proxy;
+
+import software.sava.core.programs.Discriminator;
+import software.sava.core.tx.Instruction;
+
+import java.util.Map;
+
+final class FixedLengthDiscriminatorProgramProxy<A> extends BaseProgramProxy<A> implements ProgramProxy<A> {
+
+  private final int discriminatorLength;
+  private final Map<Discriminator, IxProxy<A>> ixProxyMap;
+
+  FixedLengthDiscriminatorProgramProxy(final int discriminatorLength,
+                                       final Map<Discriminator, IxProxy<A>> ixProxyMap) {
+    this.discriminatorLength = discriminatorLength;
+    this.ixProxyMap = ixProxyMap;
+  }
+
+  @Override
+  protected IxProxy<A> lookupProxy(final Instruction instruction) {
+    final var discriminator = instruction.wrapDiscriminator(discriminatorLength);
+    return ixProxyMap.get(discriminator);
+  }
+}

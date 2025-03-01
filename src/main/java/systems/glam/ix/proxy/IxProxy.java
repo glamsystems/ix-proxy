@@ -21,6 +21,7 @@ public interface IxProxy<A> {
     }
     return new IxProxyRecord<>(
         srcDiscriminator,
+        srcDiscriminator.data(),
         dstDiscriminator,
         dynamicAccounts,
         staticAccounts,
@@ -41,6 +42,14 @@ public interface IxProxy<A> {
   }
 
   Discriminator srcDiscriminator();
+
+  boolean matchesSrcDiscriminator(final byte[] instructionData,
+                                  final int offset,
+                                  final int length);
+
+  default boolean matchesSrcDiscriminator(final Instruction instruction) {
+    return matchesSrcDiscriminator(instruction.data(), instruction.offset(), instruction.len());
+  }
 
   Discriminator dstDiscriminator();
 }
