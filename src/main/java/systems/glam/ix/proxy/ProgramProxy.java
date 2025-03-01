@@ -1,6 +1,5 @@
 package systems.glam.ix.proxy;
 
-import software.sava.core.accounts.PublicKey;
 import software.sava.core.accounts.meta.AccountMeta;
 import software.sava.core.programs.Discriminator;
 import software.sava.core.tx.Instruction;
@@ -17,10 +16,6 @@ public interface ProgramProxy<A> {
 
   static <A> ProgramProxy<A> createProxy(final List<IxProxy<A>> ixProxyList) {
     return new ProgramProxyRecord<>(ixProxyList);
-  }
-
-  static <A> ProgramProxy<A> createProxy(final Map<PublicKey, ProgramProxy<A>> programProxyMap) {
-    return new ProgramProxyMap<>(programProxyMap);
   }
 
   Instruction apply(final AccountMeta feePayer,

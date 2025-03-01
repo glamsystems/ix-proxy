@@ -2,26 +2,49 @@ package systems.glam.ix.proxy;
 
 import software.sava.core.accounts.PublicKey;
 import software.sava.core.accounts.meta.AccountMeta;
+import software.sava.core.programs.Discriminator;
 import systems.comodal.jsoniter.CharBufferFunction;
 import systems.comodal.jsoniter.FieldBufferPredicate;
 import systems.comodal.jsoniter.JsonIterator;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.function.Function;
 
 import static systems.comodal.jsoniter.JsonIterator.fieldEquals;
 
-public record ProgramMapConfig(AccountMeta readProgram,
+public record ProgramMapConfig(AccountMeta readCpiProgram,
                                List<IxMapConfig> ixMapConfigs,
                                int discriminatorLength) {
 
-  public PublicKey program() {
-    return readProgram.publicKey();
+  public PublicKey cpiProgram() {
+    return readCpiProgram.publicKey();
   }
 
   public boolean fixedLengthDiscriminator() {
     return discriminatorLength > 0;
   }
+
+  <A> ProgramProxy<A> createProgramProxy(final AccountMeta invokedProxyProgram,
+                                         final Function<DynamicAccountConfig, DynamicAccount<A>> dynamicAccountFactory) {
+    if (fixedLengthDiscriminator()) {
+      final var ixProxies = new ArrayList<IxProxy<A>>(ixMapConfigs.size());
+      for (final var ixMapConfig : ixMapConfigs) {
+        final var ixProxy = ixMapConfig.createProxy(readCpiProgram, invokedProxyProgram, dynamicAccountFactory);
+        ixProxies.add(ixProxy);
+      }
+      return ProgramProxy.createProxy(ixProxies);
+    } else {
+      final var ixProxies = HashMap.<Discriminator, IxProxy<A>>newHashMap(ixMapConfigs.size());
+      for (final var ixMapConfig : ixMapConfigs) {
+        final var ixProxy = ixMapConfig.createProxy(readCpiProgram, invokedProxyProgram, dynamicAccountFactory);
+        ixProxies.put(ixProxy.dstDiscriminator(), ixProxy);
+      }
+      return ProgramProxy.createProxy(discriminatorLength, ixProxies);
+    }
+  }
+
 
   static CharBufferFunction<PublicKey> PARSE_BASE58_PUBLIC_KEY = PublicKey::fromBase58Encoded;
 

@@ -490,7 +490,7 @@ final class GlamIxTests {
     final var ji = JsonIterator.parse(mappingJson);
 
     final var programMapConfig = ProgramMapConfig.parseConfig(ji);
-    final var readCpiProgram = AccountMeta.createRead(programMapConfig.program());
+    final var readCpiProgram = programMapConfig.readCpiProgram();
 
     final var ixMapConfigs = programMapConfig.ixMapConfigs();
 
