@@ -12,7 +12,7 @@ import java.util.Map;
 
 public interface TransactionMapper<A> extends ProgramProxy<A> {
 
-  static <A> ProgramProxy<A> createProxy(final Map<PublicKey, ProgramProxy<A>> programProxyMap) {
+  static <A> TransactionMapper<A> createProxy(final Map<PublicKey, ProgramProxy<A>> programProxyMap) {
     return new ProgramProxyMap<>(programProxyMap);
   }
 
