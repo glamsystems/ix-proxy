@@ -26,8 +26,8 @@ public record ProgramMapConfig(AccountMeta readCpiProgram,
     return discriminatorLength > 0;
   }
 
-  <A> ProgramProxy<A> createProgramProxy(final AccountMeta invokedProxyProgram,
-                                         final Function<DynamicAccountConfig, DynamicAccount<A>> dynamicAccountFactory) {
+  public <A> ProgramProxy<A> createProgramProxy(final AccountMeta invokedProxyProgram,
+                                                final Function<DynamicAccountConfig, DynamicAccount<A>> dynamicAccountFactory) {
     if (fixedLengthDiscriminator()) {
       final var ixProxies = new ArrayList<IxProxy<A>>(ixMapConfigs.size());
       for (final var ixMapConfig : ixMapConfigs) {
