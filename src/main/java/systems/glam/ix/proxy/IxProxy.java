@@ -10,8 +10,8 @@ public interface IxProxy<A> {
 
   static <A> IxProxy<A> createProxy(final AccountMeta readCpiProgram,
                                     final AccountMeta invokedProxyProgram,
-                                    final Discriminator srcDiscriminator,
-                                    final Discriminator dstDiscriminator,
+                                    final Discriminator cpiDiscriminator,
+                                    final Discriminator proxyDiscriminator,
                                     final List<DynamicAccount<A>> dynamicAccounts,
                                     final List<IndexedAccountMeta> staticAccounts,
                                     final int[] indexes) {
@@ -24,9 +24,9 @@ public interface IxProxy<A> {
     return new IxProxyRecord<>(
         readCpiProgram,
         invokedProxyProgram,
-        srcDiscriminator,
-        srcDiscriminator.data(),
-        dstDiscriminator,
+        cpiDiscriminator,
+        cpiDiscriminator.data(),
+        proxyDiscriminator,
         dynamicAccounts,
         staticAccounts,
         indexes,
@@ -38,15 +38,15 @@ public interface IxProxy<A> {
                              final A runtimeAccounts,
                              final Instruction instruction);
 
-  Discriminator srcDiscriminator();
+  Discriminator cpiDiscriminator();
 
-  boolean matchesSrcDiscriminator(final byte[] instructionData,
+  boolean matchesCpiDiscriminator(final byte[] instructionData,
                                   final int offset,
                                   final int length);
 
-  default boolean matchesSrcDiscriminator(final Instruction instruction) {
-    return matchesSrcDiscriminator(instruction.data(), instruction.offset(), instruction.len());
+  default boolean matchesCpiDiscriminator(final Instruction instruction) {
+    return matchesCpiDiscriminator(instruction.data(), instruction.offset(), instruction.len());
   }
 
-  Discriminator dstDiscriminator();
+  Discriminator proxyDiscriminator();
 }

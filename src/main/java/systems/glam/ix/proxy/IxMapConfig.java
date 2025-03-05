@@ -11,10 +11,10 @@ import java.util.function.Function;
 
 import static systems.comodal.jsoniter.JsonIterator.fieldEquals;
 
-public record IxMapConfig(String srcIxName,
-                          Discriminator srcDiscriminator,
-                          String dstIxName,
-                          Discriminator dstDiscriminator,
+public record IxMapConfig(String cpiIxName,
+                          Discriminator cpiDiscriminator,
+                          String proxyIxName,
+                          Discriminator proxyDiscriminator,
                           List<DynamicAccountConfig> dynamicAccounts,
                           List<IndexedAccountMeta> staticAccounts,
                           int[] indexMap) {
@@ -31,8 +31,8 @@ public record IxMapConfig(String srcIxName,
     return IxProxy.createProxy(
         readCpiProgram,
         invokedProxyProgram,
-        srcDiscriminator,
-        dstDiscriminator,
+        cpiDiscriminator,
+        proxyDiscriminator,
         dynamicAccounts.stream().map(accountMetaFactory).toList(),
         staticAccounts,
         indexMap
@@ -44,10 +44,10 @@ public record IxMapConfig(String srcIxName,
     private static final List<IndexedAccountMeta> NO_NEW_ACCOUNTS = List.of();
     private static final int[] NO_INDEX_MAP = new int[0];
 
-    private String srcIxName;
-    private Discriminator srcDiscriminator;
-    private String dstIxName;
-    private Discriminator dstDiscriminator;
+    private String cpiIxName;
+    private Discriminator cpiDiscriminator;
+    private String proxyIxName;
+    private Discriminator proxyDiscriminator;
     private List<DynamicAccountConfig> dynamicAccounts;
     private List<IndexedAccountMeta> staticAccounts;
     private int[] indexMap;
@@ -57,10 +57,10 @@ public record IxMapConfig(String srcIxName,
 
     private IxMapConfig create() {
       return new IxMapConfig(
-          srcIxName,
-          srcDiscriminator,
-          dstIxName,
-          dstDiscriminator,
+          cpiIxName,
+          cpiDiscriminator,
+          proxyIxName,
+          proxyDiscriminator,
           dynamicAccounts,
           staticAccounts == null ? NO_NEW_ACCOUNTS : staticAccounts,
           indexMap == null ? NO_INDEX_MAP : indexMap
@@ -85,13 +85,13 @@ public record IxMapConfig(String srcIxName,
     @Override
     public boolean test(final char[] buf, final int offset, final int len, final JsonIterator ji) {
       if (fieldEquals("src_ix_name", buf, offset, len)) {
-        srcIxName = ji.readString();
+        cpiIxName = ji.readString();
       } else if (fieldEquals("src_discriminator", buf, offset, len)) {
-        srcDiscriminator = parseDiscriminator(ji);
+        cpiDiscriminator = parseDiscriminator(ji);
       } else if (fieldEquals("dst_ix_name", buf, offset, len)) {
-        dstIxName = ji.readString();
+        proxyIxName = ji.readString();
       } else if (fieldEquals("dst_discriminator", buf, offset, len)) {
-        dstDiscriminator = parseDiscriminator(ji);
+        proxyDiscriminator = parseDiscriminator(ji);
       } else if (fieldEquals("dynamic_accounts", buf, offset, len)) {
         final var programAccounts = new ArrayList<DynamicAccountConfig>();
         while (ji.readArray()) {

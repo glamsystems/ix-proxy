@@ -18,7 +18,7 @@ final class ProgramProxyRecord<A> extends BaseProgramProxy<A> implements Program
     final int offset = instruction.offset();
     final int length = instruction.len();
     for (final var proxy : ixProxyList) {
-      if (proxy.matchesSrcDiscriminator(instructionData, offset, length)) {
+      if (proxy.matchesCpiDiscriminator(instructionData, offset, length)) {
         return proxy;
       }
     }

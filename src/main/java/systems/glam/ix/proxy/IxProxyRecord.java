@@ -10,9 +10,9 @@ import java.util.List;
 
 record IxProxyRecord<A>(AccountMeta readCpiProgram,
                         AccountMeta invokedProxyProgram,
-                        Discriminator srcDiscriminator,
-                        byte[] srcDiscriminatorBytes,
-                        Discriminator dstDiscriminator,
+                        Discriminator cpiDiscriminator,
+                        byte[] cpiDiscriminatorBytes,
+                        Discriminator proxyDiscriminator,
                         List<DynamicAccount<A>> dynamicAccounts,
                         List<IndexedAccountMeta> staticAccounts,
                         int[] indexes,
@@ -29,42 +29,43 @@ record IxProxyRecord<A>(AccountMeta readCpiProgram,
       ));
     }
 
-    final int srcDiscriminatorLength = srcDiscriminator.length();
-    if (srcDiscriminatorBytes.length != srcDiscriminatorLength) {
+    final int cpiDiscriminatorLength = cpiDiscriminator.length();
+    if (cpiDiscriminatorBytes.length != cpiDiscriminatorLength) {
       throw new IllegalStateException(String.format(
-          "Expected src discriminator length of %d, but was %d.",
-          srcDiscriminatorBytes.length, srcDiscriminatorLength
-      ));
-    }
-    final int srcDataLength = instruction.len();
-    final int srcDataOffset = instruction.offset();
-    final byte[] srcData = instruction.data();
-    if (!Arrays.equals(
-        srcData, srcDataOffset, srcDataOffset + srcDiscriminatorLength,
-        srcDiscriminatorBytes, 0, srcDiscriminatorLength
-    )) {
-      throw new IllegalStateException(String.format(
-          "Expected src discriminator %s, but was %s.",
-          Base64.getEncoder().encodeToString(srcDiscriminatorBytes),
-          Base64.getEncoder().encodeToString(Arrays.copyOfRange(srcData, srcDataOffset, srcDataOffset + srcDiscriminatorLength))
+          "Expected CPI discriminator length of %d, but was %d.",
+          cpiDiscriminatorBytes.length, cpiDiscriminatorLength
       ));
     }
 
-    final int dstDiscriminatorLength = dstDiscriminator.length();
-    final int lengthDelta = dstDiscriminatorLength - srcDiscriminatorLength;
+    final int cpiDataLength = instruction.len();
+    final int cpiDataOffset = instruction.offset();
+    final byte[] cpiData = instruction.data();
+    if (!Arrays.equals(
+        cpiData, cpiDataOffset, cpiDataOffset + cpiDiscriminatorLength,
+        cpiDiscriminatorBytes, 0, cpiDiscriminatorLength
+    )) {
+      throw new IllegalStateException(String.format(
+          "Expected CPI discriminator %s, but was %s.",
+          Base64.getEncoder().encodeToString(cpiDiscriminatorBytes),
+          Base64.getEncoder().encodeToString(Arrays.copyOfRange(cpiData, cpiDataOffset, cpiDataOffset + cpiDiscriminatorLength))
+      ));
+    }
+
+    final int proxyDiscriminatorLength = proxyDiscriminator.length();
+    final int lengthDelta = proxyDiscriminatorLength - cpiDiscriminatorLength;
 
     final byte[] data;
     if (lengthDelta == 0) {
-      data = new byte[srcDataLength];
-      System.arraycopy(srcData, srcDataOffset, data, 0, srcDataLength);
+      data = new byte[cpiDataLength];
+      System.arraycopy(cpiData, cpiDataOffset, data, 0, cpiDataLength);
     } else {
-      data = new byte[srcDataLength + lengthDelta];
+      data = new byte[cpiDataLength + lengthDelta];
       System.arraycopy(
-          srcData, srcDataOffset + srcDiscriminatorLength,
-          data, srcDiscriminatorLength, srcDataLength - srcDiscriminatorLength
+          cpiData, cpiDataOffset + cpiDiscriminatorLength,
+          data, cpiDiscriminatorLength, cpiDataLength - cpiDiscriminatorLength
       );
     }
-    dstDiscriminator.write(data, 0);
+    proxyDiscriminator.write(data, 0);
 
     final var mappedAccounts = new AccountMeta[numAccounts];
     for (final var programAccountMeta : dynamicAccounts) {
@@ -100,12 +101,12 @@ record IxProxyRecord<A>(AccountMeta readCpiProgram,
   }
 
   @Override
-  public boolean matchesSrcDiscriminator(final byte[] instructionData, final int offset, final int length) {
-    final int discriminatorLength = srcDiscriminatorBytes.length;
+  public boolean matchesCpiDiscriminator(final byte[] instructionData, final int offset, final int length) {
+    final int discriminatorLength = cpiDiscriminatorBytes.length;
     if (discriminatorLength <= length) {
       return Arrays.equals(
           instructionData, offset, offset + discriminatorLength,
-          srcDiscriminatorBytes, 0, discriminatorLength
+          cpiDiscriminatorBytes, 0, discriminatorLength
       );
     } else {
       return false;

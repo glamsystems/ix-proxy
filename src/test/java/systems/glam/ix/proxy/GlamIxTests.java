@@ -518,9 +518,9 @@ final class GlamIxTests {
         };
       };
 
-      final var srcDiscriminator = ixMapConfig.srcDiscriminator();
+      final var cpiDiscriminator = ixMapConfig.cpiDiscriminator();
       final var ixProxy = ixMapConfig.createProxy(readCpiProgram, invokedProxyProgram, dynamicAccountFactory);
-      ixProxies.put(srcDiscriminator, ixProxy);
+      ixProxies.put(cpiDiscriminator, ixProxy);
     }
 
     assertEquals(8, ixMapConfigs.size());
@@ -530,7 +530,7 @@ final class GlamIxTests {
 
     assertEquals(
         Discriminator.toDiscriminator(179, 118, 20, 212, 145, 146, 49, 130),
-        ixProxy.dstDiscriminator()
+        ixProxy.proxyDiscriminator()
     );
 
     assertInstanceOf(IxProxyRecord.class, ixProxy);

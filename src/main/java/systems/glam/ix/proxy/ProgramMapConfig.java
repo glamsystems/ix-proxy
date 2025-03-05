@@ -10,6 +10,7 @@ import systems.comodal.jsoniter.JsonIterator;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static systems.comodal.jsoniter.JsonIterator.fieldEquals;
@@ -29,22 +30,31 @@ public record ProgramMapConfig(AccountMeta readCpiProgram,
   public <A> ProgramProxy<A> createProgramProxy(final AccountMeta invokedProxyProgram,
                                                 final Function<DynamicAccountConfig, DynamicAccount<A>> dynamicAccountFactory) {
     if (fixedLengthDiscriminator()) {
+      final var ixProxies = HashMap.<Discriminator, IxProxy<A>>newHashMap(ixMapConfigs.size());
+      for (final var ixMapConfig : ixMapConfigs) {
+        final var ixProxy = ixMapConfig.createProxy(readCpiProgram, invokedProxyProgram, dynamicAccountFactory);
+        ixProxies.put(ixProxy.cpiDiscriminator(), ixProxy);
+      }
+      return ProgramProxy.createProxy(discriminatorLength, ixProxies);
+    } else {
       final var ixProxies = new ArrayList<IxProxy<A>>(ixMapConfigs.size());
       for (final var ixMapConfig : ixMapConfigs) {
         final var ixProxy = ixMapConfig.createProxy(readCpiProgram, invokedProxyProgram, dynamicAccountFactory);
         ixProxies.add(ixProxy);
       }
       return ProgramProxy.createProxy(ixProxies);
-    } else {
-      final var ixProxies = HashMap.<Discriminator, IxProxy<A>>newHashMap(ixMapConfigs.size());
-      for (final var ixMapConfig : ixMapConfigs) {
-        final var ixProxy = ixMapConfig.createProxy(readCpiProgram, invokedProxyProgram, dynamicAccountFactory);
-        ixProxies.put(ixProxy.dstDiscriminator(), ixProxy);
-      }
-      return ProgramProxy.createProxy(discriminatorLength, ixProxies);
     }
   }
 
+  public static <A> Map<PublicKey, ProgramProxy<A>> createProgramProxies(final AccountMeta invokedProxyProgram,
+                                                                         final Function<DynamicAccountConfig, DynamicAccount<A>> dynamicAccountFactory,
+                                                                         final List<ProgramMapConfig> programMapConfigs) {
+    final var proxies = new HashMap<PublicKey, ProgramProxy<A>>(programMapConfigs.size());
+    for (final var programMapConfig : programMapConfigs) {
+      proxies.put(programMapConfig.cpiProgram(), programMapConfig.createProgramProxy(invokedProxyProgram, dynamicAccountFactory));
+    }
+    return proxies;
+  }
 
   static CharBufferFunction<PublicKey> PARSE_BASE58_PUBLIC_KEY = PublicKey::fromBase58Encoded;
 
@@ -69,10 +79,10 @@ public record ProgramMapConfig(AccountMeta readCpiProgram,
       } else {
         final var iterator = ixMapConfigs.iterator();
         var ixMapConfig = iterator.next();
-        int discriminatorLength = ixMapConfig.dstDiscriminator().length();
+        int discriminatorLength = ixMapConfig.proxyDiscriminator().length();
         while (iterator.hasNext()) {
           ixMapConfig = iterator.next();
-          final int len = ixMapConfig.dstDiscriminator().length();
+          final int len = ixMapConfig.proxyDiscriminator().length();
           if (len != discriminatorLength) {
             return new ProgramMapConfig(readProgram, ixMapConfigs, -1);
           }
