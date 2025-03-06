@@ -67,30 +67,31 @@ record IxProxyRecord<A>(AccountMeta readCpiProgram,
     }
     proxyDiscriminator.write(data, 0);
 
-    final var mappedAccounts = new AccountMeta[numAccounts];
-    for (final var programAccountMeta : dynamicAccounts) {
-      programAccountMeta.setAccount(mappedAccounts, readCpiProgram, feePayer, runtimeAccounts);
+    final var accounts = instruction.accounts();
+    final int numAccounts = accounts.size();
+    final int numExtraAccounts = numAccounts - indexes.length;
+
+    final var mappedAccounts = new AccountMeta[this.numAccounts + numExtraAccounts];
+    for (final var dynamicAccount : dynamicAccounts) {
+      dynamicAccount.setAccount(mappedAccounts, readCpiProgram, feePayer, runtimeAccounts);
     }
     for (final var staticAccount : staticAccounts) {
       staticAccount.setAccount(mappedAccounts);
     }
 
-    final var accounts = instruction.accounts();
-    final int numAccounts = accounts.size();
-
     int s = 0;
-    int g;
+    int m;
     for (; s < indexes.length; ++s) {
-      g = indexes[s];
-      if (g >= 0) {
-        mappedAccounts[g] = accounts.get(s);
+      m = indexes[s];
+      if (m >= 0) {
+        mappedAccounts[m] = accounts.get(s);
       }
     }
 
     // Copy extra accounts.
-    g = numAccounts;
-    for (; s < numAccounts; ++s, ++g) {
-      mappedAccounts[g] = accounts.get(s);
+    m = this.numAccounts;
+    for (; s < numAccounts; ++s, ++m) {
+      mappedAccounts[m] = accounts.get(s);
     }
 
     return Instruction.createInstruction(
