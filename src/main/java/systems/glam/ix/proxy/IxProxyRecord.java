@@ -62,7 +62,7 @@ record IxProxyRecord<A>(AccountMeta readCpiProgram,
       data = new byte[cpiDataLength + lengthDelta];
       System.arraycopy(
           cpiData, cpiDataOffset + cpiDiscriminatorLength,
-          data, cpiDiscriminatorLength, cpiDataLength - cpiDiscriminatorLength
+          data, proxyDiscriminatorLength, cpiDataLength - cpiDiscriminatorLength
       );
     }
     proxyDiscriminator.write(data, 0);
