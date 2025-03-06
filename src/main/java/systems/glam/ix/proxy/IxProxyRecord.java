@@ -53,18 +53,11 @@ record IxProxyRecord<A>(AccountMeta readCpiProgram,
 
     final int proxyDiscriminatorLength = proxyDiscriminator.length();
     final int lengthDelta = proxyDiscriminatorLength - cpiDiscriminatorLength;
-
-    final byte[] data;
-    if (lengthDelta == 0) {
-      data = new byte[cpiDataLength];
-      System.arraycopy(cpiData, cpiDataOffset, data, 0, cpiDataLength);
-    } else {
-      data = new byte[cpiDataLength + lengthDelta];
-      System.arraycopy(
-          cpiData, cpiDataOffset + cpiDiscriminatorLength,
-          data, proxyDiscriminatorLength, cpiDataLength - cpiDiscriminatorLength
-      );
-    }
+    final byte[] data = new byte[cpiDataLength + lengthDelta];
+    System.arraycopy(
+        cpiData, cpiDataOffset + cpiDiscriminatorLength,
+        data, proxyDiscriminatorLength, cpiDataLength - cpiDiscriminatorLength
+    );
     proxyDiscriminator.write(data, 0);
 
     final var accounts = instruction.accounts();
