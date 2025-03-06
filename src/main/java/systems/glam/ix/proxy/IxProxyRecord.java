@@ -51,15 +51,6 @@ record IxProxyRecord<A>(AccountMeta readCpiProgram,
       ));
     }
 
-    final int proxyDiscriminatorLength = proxyDiscriminator.length();
-    final int lengthDelta = proxyDiscriminatorLength - cpiDiscriminatorLength;
-    final byte[] data = new byte[cpiDataLength + lengthDelta];
-    System.arraycopy(
-        cpiData, cpiDataOffset + cpiDiscriminatorLength,
-        data, proxyDiscriminatorLength, cpiDataLength - cpiDiscriminatorLength
-    );
-    proxyDiscriminator.write(data, 0);
-
     final var accounts = instruction.accounts();
     final int numAccounts = accounts.size();
     final int numExtraAccounts = numAccounts - indexes.length;
@@ -86,6 +77,15 @@ record IxProxyRecord<A>(AccountMeta readCpiProgram,
     for (; s < numAccounts; ++s, ++m) {
       mappedAccounts[m] = accounts.get(s);
     }
+
+    final int proxyDiscriminatorLength = proxyDiscriminator.length();
+    final int lengthDelta = proxyDiscriminatorLength - cpiDiscriminatorLength;
+    final byte[] data = new byte[cpiDataLength + lengthDelta];
+    proxyDiscriminator.write(data, 0);
+    System.arraycopy(
+        cpiData, cpiDataOffset + cpiDiscriminatorLength,
+        data, proxyDiscriminatorLength, cpiDataLength - cpiDiscriminatorLength
+    );
 
     return Instruction.createInstruction(
         invokedProxyProgram,
