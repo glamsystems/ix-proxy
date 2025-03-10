@@ -489,7 +489,10 @@ final class GlamIxTests {
     final var invokedProxyProgram = AccountMeta.createInvoked(PublicKey.NONE);
     final var ji = JsonIterator.parse(mappingJson);
 
-    final var programMapConfig = ProgramMapConfig.parseConfig(ji);
+    final var accountMetaCache = new HashMap<AccountMeta, AccountMeta>();
+    final var indexedAccountMetaCache = new HashMap<IndexedAccountMeta, IndexedAccountMeta>();
+
+    final var programMapConfig = ProgramMapConfig.parseConfig(accountMetaCache, indexedAccountMetaCache, ji);
     final var readCpiProgram = programMapConfig.readCpiProgram();
 
     final var ixMapConfigs = programMapConfig.ixMapConfigs();

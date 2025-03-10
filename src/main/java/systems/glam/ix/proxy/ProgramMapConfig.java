@@ -58,18 +58,26 @@ public record ProgramMapConfig(AccountMeta readCpiProgram,
 
   static CharBufferFunction<PublicKey> PARSE_BASE58_PUBLIC_KEY = PublicKey::fromBase58Encoded;
 
-  public static ProgramMapConfig parseConfig(final JsonIterator ji) {
-    final var parser = new Parser();
+  public static ProgramMapConfig parseConfig(final Map<AccountMeta, AccountMeta> accountMetaCache,
+                                             final Map<IndexedAccountMeta, IndexedAccountMeta> indexedAccountMetaCache,
+                                             final JsonIterator ji) {
+    final var parser = new Parser(accountMetaCache, indexedAccountMetaCache);
     ji.testObject(parser);
     return parser.create();
   }
 
   private static final class Parser implements FieldBufferPredicate {
 
+    private final Map<AccountMeta, AccountMeta> accountMetaCache;
+    private final Map<IndexedAccountMeta, IndexedAccountMeta> indexedAccountMetaCache;
+
     private PublicKey program;
     private List<IxMapConfig> ixMapConfigs;
 
-    private Parser() {
+    private Parser(final Map<AccountMeta, AccountMeta> accountMetaCache,
+                   final Map<IndexedAccountMeta, IndexedAccountMeta> indexedAccountMetaCache) {
+      this.accountMetaCache = accountMetaCache;
+      this.indexedAccountMetaCache = indexedAccountMetaCache;
     }
 
     private ProgramMapConfig create() {
@@ -98,7 +106,7 @@ public record ProgramMapConfig(AccountMeta readCpiProgram,
       } else if (fieldEquals("instructions", buf, offset, len)) {
         final var ixMapConfigs = new ArrayList<IxMapConfig>();
         while (ji.readArray()) {
-          ixMapConfigs.add(IxMapConfig.parseConfig(ji));
+          ixMapConfigs.add(IxMapConfig.parseConfig(accountMetaCache, indexedAccountMetaCache, ji));
         }
         this.ixMapConfigs = ixMapConfigs;
       } else {

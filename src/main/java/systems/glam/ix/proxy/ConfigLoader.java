@@ -1,5 +1,6 @@
 package systems.glam.ix.proxy;
 
+import software.sava.core.accounts.meta.AccountMeta;
 import systems.comodal.jsoniter.FieldBufferPredicate;
 import systems.comodal.jsoniter.JsonIterator;
 
@@ -40,6 +41,10 @@ public record ConfigLoader(Path configDirectory, Set<URI> remoteConfigs) {
     if (!Files.isDirectory(configDirectory)) {
       throw new IllegalStateException(String.format("Local config directory %s does not exist.", configDirectory));
     }
+
+    final var accountMetaCache = new HashMap<AccountMeta, AccountMeta>(256);
+    final var indexedAccountMetaCache = new HashMap<IndexedAccountMeta, IndexedAccountMeta>(256);
+
     try (final var paths = Files.walk(configDirectory)) {
       final var configFiles = paths
           .filter(Files::isRegularFile)
@@ -49,7 +54,7 @@ public record ConfigLoader(Path configDirectory, Set<URI> remoteConfigs) {
       for (final var configFile : configFiles) {
         final byte[] configData = Files.readAllBytes(configFile);
         final var ji = JsonIterator.parse(configData);
-        final var programMapConfig = ProgramMapConfig.parseConfig(ji);
+        final var programMapConfig = ProgramMapConfig.parseConfig(accountMetaCache, indexedAccountMetaCache, ji);
         configs.add(programMapConfig);
       }
       return configs;
@@ -68,12 +73,15 @@ public record ConfigLoader(Path configDirectory, Set<URI> remoteConfigs) {
       if (cacheFiles && configDirectory == null) {
         throw new IllegalStateException("configDirectory must not be null when cacheFiles is true.");
       }
+      final var accountMetaCache = new HashMap<AccountMeta, AccountMeta>(256);
+      final var indexedAccountMetaCache = new HashMap<IndexedAccountMeta, IndexedAccountMeta>(256);
+
       final int numRemoteConfigs = remoteConfigs.size();
       final var workQueue = new ArrayBlockingQueue<URI>(numRemoteConfigs);
       workQueue.addAll(remoteConfigs);
       final long maxDelayMillis = maxDelay.toMillis();
       final var futureResults = IntStream.range(0, numThreads)
-          .mapToObj(i -> new Worker(workQueue, httpClient, cacheFiles, configDirectory, maxDelayMillis, maxRetries))
+          .mapToObj(i -> new Worker(workQueue, httpClient, cacheFiles, configDirectory, maxDelayMillis, maxRetries, accountMetaCache, indexedAccountMetaCache))
           .map(worker -> CompletableFuture.supplyAsync(worker, executorService))
           .toList();
 
@@ -92,7 +100,9 @@ public record ConfigLoader(Path configDirectory, Set<URI> remoteConfigs) {
                         boolean cacheFiles,
                         Path configDirectory,
                         long maxDelayMillis,
-                        int maxRetries) implements Supplier<List<ProgramMapConfig>> {
+                        int maxRetries,
+                        Map<AccountMeta, AccountMeta> accountMetaCache,
+                        Map<IndexedAccountMeta, IndexedAccountMeta> indexedAccountMetaCache) implements Supplier<List<ProgramMapConfig>> {
 
 
     @Override
@@ -127,7 +137,7 @@ public record ConfigLoader(Path configDirectory, Set<URI> remoteConfigs) {
             }
 
             final var ji = JsonIterator.parse(responseData);
-            final var programMapConfig = ProgramMapConfig.parseConfig(ji);
+            final var programMapConfig = ProgramMapConfig.parseConfig(accountMetaCache, indexedAccountMetaCache, ji);
             results.add(programMapConfig);
 
             if (cacheFiles) {

@@ -7,6 +7,7 @@ import systems.comodal.jsoniter.JsonIterator;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static systems.comodal.jsoniter.JsonIterator.fieldEquals;
@@ -19,8 +20,10 @@ public record IxMapConfig(String cpiIxName,
                           List<IndexedAccountMeta> staticAccounts,
                           int[] indexMap) {
 
-  public static IxMapConfig parseConfig(final JsonIterator ji) {
-    final var parser = new Parser();
+  public static IxMapConfig parseConfig(final Map<AccountMeta, AccountMeta> accountMetaCache,
+                                        final Map<IndexedAccountMeta, IndexedAccountMeta> indexedAccountMetaCache,
+                                        final JsonIterator ji) {
+    final var parser = new Parser(accountMetaCache, indexedAccountMetaCache);
     ji.testObject(parser);
     return parser.create();
   }
@@ -44,6 +47,9 @@ public record IxMapConfig(String cpiIxName,
     private static final List<IndexedAccountMeta> NO_NEW_ACCOUNTS = List.of();
     private static final int[] NO_INDEX_MAP = new int[0];
 
+    private final Map<AccountMeta, AccountMeta> accountMetaCache;
+    private final Map<IndexedAccountMeta, IndexedAccountMeta> indexedAccountMetaCache;
+
     private String cpiIxName;
     private Discriminator cpiDiscriminator;
     private String proxyIxName;
@@ -52,7 +58,10 @@ public record IxMapConfig(String cpiIxName,
     private List<IndexedAccountMeta> staticAccounts;
     private int[] indexMap;
 
-    private Parser() {
+    private Parser(final Map<AccountMeta, AccountMeta> accountMetaCache,
+                   final Map<IndexedAccountMeta, IndexedAccountMeta> indexedAccountMetaCache) {
+      this.accountMetaCache = accountMetaCache;
+      this.indexedAccountMetaCache = indexedAccountMetaCache;
     }
 
     private IxMapConfig create() {
@@ -101,7 +110,7 @@ public record IxMapConfig(String cpiIxName,
       } else if (fieldEquals("static_accounts", buf, offset, len)) {
         final var newAccounts = new ArrayList<IndexedAccountMeta>();
         while (ji.readArray()) {
-          newAccounts.add(IndexedAccountMeta.parseConfig(ji));
+          newAccounts.add(IndexedAccountMeta.parseConfig(accountMetaCache, indexedAccountMetaCache, ji));
         }
         this.staticAccounts = newAccounts.isEmpty() ? NO_NEW_ACCOUNTS : newAccounts;
       } else if (fieldEquals("index_map", buf, offset, len)) {

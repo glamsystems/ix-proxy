@@ -22,16 +22,12 @@ public record DynamicAccountConfig(String name,
     return IndexedAccountMeta.createMeta(publicKey, writable, signer);
   }
 
-  public <A> DynamicAccount<A> createDynamicAccount(final PublicKey account) {
-    return (mappedAccounts, _, _, _) -> mappedAccounts[index] = IndexedAccountMeta.createMeta(account, writable, signer);
-  }
-
   public <A> DynamicAccount<A> createFeePayerAccount() {
-    return (mappedAccounts, _, feePayer, _) -> mappedAccounts[index] = feePayer;
+    return new IndexedFeePayer<>(index);
   }
 
   public <A> DynamicAccount<A> createReadCpiProgram() {
-    return (mappedAccounts, cpiProgram, _, _) -> mappedAccounts[index] = cpiProgram;
+    return new IndexedCpiProgram<>(index);
   }
 
   private static final class Parser implements FieldBufferPredicate {
