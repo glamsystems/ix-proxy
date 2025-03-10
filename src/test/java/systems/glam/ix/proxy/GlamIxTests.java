@@ -539,15 +539,15 @@ final class GlamIxTests {
     assertInstanceOf(IxProxyRecord.class, ixProxy);
     final var ixProxyRecord = (IxProxyRecord<GlamVaultAccounts>) ixProxy;
 
-    var dynamicAccounts = ixProxyRecord.dynamicAccounts();
+    var dynamicAccounts = ixProxyRecord.dynamicAccounts;
     assertEquals(4, dynamicAccounts.size());
 
-    var staticAccounts = ixProxyRecord.staticAccounts();
+    var staticAccounts = ixProxyRecord.staticAccounts;
     assertEquals(0, staticAccounts.size());
 
     assertArrayEquals(
         new int[]{4, 5, 6, -1},
-        ixProxyRecord.indexes()
+        ixProxyRecord.indexes
     );
   }
 }

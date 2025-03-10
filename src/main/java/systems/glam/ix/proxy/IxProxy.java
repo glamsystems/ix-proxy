@@ -25,7 +25,6 @@ public interface IxProxy<A> {
         readCpiProgram,
         invokedProxyProgram,
         cpiDiscriminator,
-        cpiDiscriminator.data(),
         proxyDiscriminator,
         dynamicAccounts,
         staticAccounts,

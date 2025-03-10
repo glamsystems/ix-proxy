@@ -31,15 +31,23 @@ public record IxMapConfig(String cpiIxName,
   public <A> IxProxy<A> createProxy(final AccountMeta readCpiProgram,
                                     final AccountMeta invokedProxyProgram,
                                     final Function<DynamicAccountConfig, DynamicAccount<A>> accountMetaFactory) {
-    return IxProxy.createProxy(
-        readCpiProgram,
-        invokedProxyProgram,
-        cpiDiscriminator,
-        proxyDiscriminator,
-        dynamicAccounts.stream().map(accountMetaFactory).toList(),
-        staticAccounts,
-        indexMap
-    );
+    if (proxyDiscriminator == null) {
+      return new IdentityIxProxy<>(
+          readCpiProgram,
+          invokedProxyProgram,
+          cpiDiscriminator
+      );
+    } else {
+      return IxProxy.createProxy(
+          readCpiProgram,
+          invokedProxyProgram,
+          cpiDiscriminator,
+          proxyDiscriminator,
+          dynamicAccounts.stream().map(accountMetaFactory).toList(),
+          staticAccounts,
+          indexMap
+      );
+    }
   }
 
   private static final class Parser implements FieldBufferPredicate {
@@ -108,11 +116,11 @@ public record IxMapConfig(String cpiIxName,
         }
         this.dynamicAccounts = programAccounts;
       } else if (fieldEquals("static_accounts", buf, offset, len)) {
-        final var newAccounts = new ArrayList<IndexedAccountMeta>();
+        final var staticAccounts = new ArrayList<IndexedAccountMeta>();
         while (ji.readArray()) {
-          newAccounts.add(IndexedAccountMeta.parseConfig(accountMetaCache, indexedAccountMetaCache, ji));
+          staticAccounts.add(IndexedAccountMeta.parseConfig(accountMetaCache, indexedAccountMetaCache, ji));
         }
-        this.staticAccounts = newAccounts.isEmpty() ? NO_NEW_ACCOUNTS : newAccounts;
+        this.staticAccounts = staticAccounts.isEmpty() ? NO_NEW_ACCOUNTS : List.copyOf(staticAccounts);
       } else if (fieldEquals("index_map", buf, offset, len)) {
         int i = 0;
         final int mark = ji.mark();
