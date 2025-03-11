@@ -16,14 +16,14 @@ final class IxProxyRecord<A> extends BaseIxProxy<A> {
   private final int numAccounts;
   private final int lengthDelta;
 
-  IxProxyRecord(AccountMeta readCpiProgram,
-                AccountMeta invokedProxyProgram,
-                Discriminator cpiDiscriminator,
-                Discriminator proxyDiscriminator,
-                List<DynamicAccount<A>> dynamicAccounts,
-                List<IndexedAccountMeta> staticAccounts,
-                int[] indexes,
-                int numAccounts) {
+  IxProxyRecord(final AccountMeta readCpiProgram,
+                final AccountMeta invokedProxyProgram,
+                final Discriminator cpiDiscriminator,
+                final Discriminator proxyDiscriminator,
+                final List<DynamicAccount<A>> dynamicAccounts,
+                final List<IndexedAccountMeta> staticAccounts,
+                final int[] indexes,
+                final int numAccounts) {
     super(readCpiProgram, invokedProxyProgram, cpiDiscriminator);
     this.proxyDiscriminator = proxyDiscriminator;
     this.dynamicAccounts = dynamicAccounts;
@@ -34,11 +34,9 @@ final class IxProxyRecord<A> extends BaseIxProxy<A> {
   }
 
   @Override
-  public Instruction mapInstruction(final AccountMeta feePayer,
-                                    final A runtimeAccounts,
-                                    final Instruction instruction) {
-    validateMapping(instruction);
-
+  public Instruction mapInstructionUnchecked(final AccountMeta feePayer,
+                                             final A runtimeAccounts,
+                                             final Instruction instruction) {
     final var accounts = instruction.accounts();
     final int numAccounts = accounts.size();
     final int numExtraAccounts = numAccounts - indexes.length;

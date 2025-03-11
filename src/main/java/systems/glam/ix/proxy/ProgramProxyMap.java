@@ -20,10 +20,19 @@ final class ProgramProxyMap<A> implements TransactionMapper<A> {
   }
 
   @Override
-  public Instruction apply(final AccountMeta feePayer, final A runtimeAccounts, final Instruction instruction) {
+  public Instruction mapInstruction(final AccountMeta feePayer,
+                                    final A runtimeAccounts,
+                                    final Instruction instruction) {
     final var programProxy = programProxyMap.get(instruction.programId().publicKey());
-    // TODO: handle non-proxied programs such as the compute budget program explicitly.
-    return programProxy == null ? instruction : programProxy.apply(feePayer, runtimeAccounts, instruction);
+    return programProxy == null ? instruction : programProxy.mapInstruction(feePayer, runtimeAccounts, instruction);
+  }
+
+  @Override
+  public Instruction mapInstructionUnchecked(final AccountMeta feePayer,
+                                             final A runtimeAccounts,
+                                             final Instruction instruction) {
+    final var programProxy = programProxyMap.get(instruction.programId().publicKey());
+    return programProxy == null ? instruction : programProxy.mapInstructionUnchecked(feePayer, runtimeAccounts, instruction);
   }
 
   @Override
@@ -33,7 +42,7 @@ final class ProgramProxyMap<A> implements TransactionMapper<A> {
     final var mappedInstructions = new Instruction[instructions.size()];
     int i = 0;
     for (final var instruction : instructions) {
-      mappedInstructions[i++] = apply(feePayer, runtimeAccounts, instruction);
+      mappedInstructions[i++] = mapInstruction(feePayer, runtimeAccounts, instruction);
     }
     return mappedInstructions;
   }

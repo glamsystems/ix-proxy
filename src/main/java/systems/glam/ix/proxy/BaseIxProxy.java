@@ -54,6 +54,14 @@ abstract class BaseIxProxy<A> implements IxProxy<A> {
   }
 
   @Override
+  public final Instruction mapInstruction(final AccountMeta feePayer,
+                                          final A runtimeAccounts,
+                                          final Instruction instruction) {
+    validateMapping(instruction);
+    return mapInstructionUnchecked(feePayer, runtimeAccounts, instruction);
+  }
+
+  @Override
   public final boolean matchesCpiDiscriminator(final byte[] instructionData, final int offset, final int length) {
     final int discriminatorLength = cpiDiscriminatorBytes.length;
     if (discriminatorLength <= length) {

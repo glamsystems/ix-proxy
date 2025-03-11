@@ -6,6 +6,7 @@ import systems.comodal.jsoniter.FieldBufferPredicate;
 import systems.comodal.jsoniter.JsonIterator;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -32,11 +33,37 @@ public record IxMapConfig(String cpiIxName,
                                     final AccountMeta invokedProxyProgram,
                                     final Function<DynamicAccountConfig, DynamicAccount<A>> accountMetaFactory) {
     if (proxyDiscriminator == null) {
-      return new IdentityIxProxy<>(
-          readCpiProgram,
-          invokedProxyProgram,
-          cpiDiscriminator
-      );
+      if (!staticAccounts.isEmpty()) {
+        throw new IllegalStateException("Static accounts are not supported for IxMapConfig without a proxy discriminator.");
+      }
+      final int numDynamicAccounts = dynamicAccounts.size();
+      if (numDynamicAccounts == 0) {
+        if (indexMap.length != 0) {
+          throw new IllegalStateException("Index map is not supported for IxMapConfig without a proxy discriminator and no dynamic accounts.");
+        }
+        return new IdentityIxProxy<>(
+            readCpiProgram,
+            invokedProxyProgram,
+            cpiDiscriminator
+        );
+      } else if (numDynamicAccounts == 1) {
+        final var dynamicAccount = dynamicAccounts.getFirst();
+        if (!dynamicAccount.writable() || !dynamicAccount.signer()) {
+          throw new IllegalStateException("Invalid configuration: Dynamic fee payer account must be writable and signer.");
+        }
+        final long numRemoved = Arrays.stream(indexMap).filter(i -> i < 0).count();
+        if (numRemoved != 1) {
+          throw new IllegalStateException("Invalid configuration: Index map must remove exactly one account.");
+        }
+        return new PayerIxProxy<>(
+            readCpiProgram,
+            readCpiProgram,
+            cpiDiscriminator,
+            dynamicAccount.index()
+        );
+      } else {
+        throw new IllegalStateException("Invalid configuration: Only one or none dynamic accounts is supported for IxMapConfig without a proxy discriminator.");
+      }
     } else {
       return IxProxy.createProxy(
           readCpiProgram,
@@ -52,7 +79,8 @@ public record IxMapConfig(String cpiIxName,
 
   private static final class Parser implements FieldBufferPredicate {
 
-    private static final List<IndexedAccountMeta> NO_NEW_ACCOUNTS = List.of();
+    private static final List<DynamicAccountConfig> NO_DYNAMIC_ACCOUNTS = List.of();
+    private static final List<IndexedAccountMeta> NO_STATIC_ACCOUNTS = List.of();
     private static final int[] NO_INDEX_MAP = new int[0];
 
     private final Map<AccountMeta, AccountMeta> accountMetaCache;
@@ -78,8 +106,8 @@ public record IxMapConfig(String cpiIxName,
           cpiDiscriminator,
           proxyIxName,
           proxyDiscriminator,
-          dynamicAccounts,
-          staticAccounts == null ? NO_NEW_ACCOUNTS : staticAccounts,
+          dynamicAccounts == null ? NO_DYNAMIC_ACCOUNTS : dynamicAccounts,
+          staticAccounts == null ? NO_STATIC_ACCOUNTS : staticAccounts,
           indexMap == null ? NO_INDEX_MAP : indexMap
       );
     }
@@ -110,17 +138,17 @@ public record IxMapConfig(String cpiIxName,
       } else if (fieldEquals("dst_discriminator", buf, offset, len)) {
         proxyDiscriminator = parseDiscriminator(ji);
       } else if (fieldEquals("dynamic_accounts", buf, offset, len)) {
-        final var programAccounts = new ArrayList<DynamicAccountConfig>();
+        final var dynamicAccounts = new ArrayList<DynamicAccountConfig>();
         while (ji.readArray()) {
-          programAccounts.add(DynamicAccountConfig.parseConfig(ji));
+          dynamicAccounts.add(DynamicAccountConfig.parseConfig(ji));
         }
-        this.dynamicAccounts = programAccounts;
+        this.dynamicAccounts = dynamicAccounts.isEmpty() ? NO_DYNAMIC_ACCOUNTS : List.copyOf(dynamicAccounts);
       } else if (fieldEquals("static_accounts", buf, offset, len)) {
         final var staticAccounts = new ArrayList<IndexedAccountMeta>();
         while (ji.readArray()) {
           staticAccounts.add(IndexedAccountMeta.parseConfig(accountMetaCache, indexedAccountMetaCache, ji));
         }
-        this.staticAccounts = staticAccounts.isEmpty() ? NO_NEW_ACCOUNTS : List.copyOf(staticAccounts);
+        this.staticAccounts = staticAccounts.isEmpty() ? NO_STATIC_ACCOUNTS : List.copyOf(staticAccounts);
       } else if (fieldEquals("index_map", buf, offset, len)) {
         int i = 0;
         final int mark = ji.mark();

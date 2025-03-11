@@ -13,10 +13,9 @@ final class IdentityIxProxy<A> extends BaseIxProxy<A> {
   }
 
   @Override
-  public Instruction mapInstruction(final AccountMeta feePayer,
-                                    final A runtimeAccounts,
-                                    final Instruction instruction) {
-    validateMapping(instruction);
+  public Instruction mapInstructionUnchecked(final AccountMeta feePayer,
+                                             final A runtimeAccounts,
+                                             final Instruction instruction) {
     return instruction;
   }
 

@@ -18,7 +18,12 @@ public interface ProgramProxy<A> {
     return new ProgramProxyRecord<>(ixProxyList);
   }
 
-  Instruction apply(final AccountMeta feePayer,
-                    final A runtimeAccounts,
-                    final Instruction instruction);
+  Instruction mapInstruction(final AccountMeta feePayer,
+                             final A runtimeAccounts,
+                             final Instruction instruction);
+
+  /// Does not validate the expected program id or discriminators from the given instruction.
+  Instruction mapInstructionUnchecked(final AccountMeta feePayer,
+                                      final A runtimeAccounts,
+                                      final Instruction instruction);
 }
