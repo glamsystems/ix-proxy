@@ -2,6 +2,7 @@ package systems.glam.ix.proxy;
 
 import org.junit.jupiter.api.Test;
 import software.sava.core.accounts.PublicKey;
+import software.sava.core.accounts.SolanaAccounts;
 import software.sava.core.accounts.meta.AccountMeta;
 import software.sava.core.programs.Discriminator;
 import systems.comodal.jsoniter.JsonIterator;
@@ -13,8 +14,128 @@ import static org.junit.jupiter.api.Assertions.*;
 
 final class GlamIxTests {
 
+  record GlamVaultAccounts(AccountMeta readGlamState,
+                           AccountMeta writeGlamState,
+                           AccountMeta readGlamVault,
+                           AccountMeta writeGlamVault) {
+
+  }
+
+  private static HashMap<Discriminator, IxProxy<GlamVaultAccounts>> createProxies(final String mappingJson) {
+    final var invokedProxyProgram = AccountMeta.createInvoked(PublicKey.NONE);
+    final var ji = JsonIterator.parse(mappingJson);
+
+    final var accountMetaCache = new HashMap<AccountMeta, AccountMeta>();
+    final var indexedAccountMetaCache = new HashMap<IndexedAccountMeta, IndexedAccountMeta>();
+
+    final var programMapConfig = ProgramMapConfig.parseConfig(accountMetaCache, indexedAccountMetaCache, ji);
+    final var readCpiProgram = programMapConfig.readCpiProgram();
+
+    final var ixMapConfigs = programMapConfig.ixMapConfigs();
+
+    final var ixProxies = HashMap.<Discriminator, IxProxy<GlamVaultAccounts>>newHashMap(ixMapConfigs.size());
+
+    for (final var ixMapConfig : ixMapConfigs) {
+      final Function<DynamicAccountConfig, DynamicAccount<GlamVaultAccounts>> dynamicAccountFactory = accountConfig -> {
+        final int index = accountConfig.index();
+        final boolean w = accountConfig.writable();
+        return switch (accountConfig.name()) {
+          case "glam_state" -> (mappedAccounts, _, _, vaultAccounts) -> mappedAccounts[index] = w
+              ? vaultAccounts.writeGlamState() : vaultAccounts.readGlamState();
+          case "glam_vault" -> (mappedAccounts, _, _, vaultAccounts) -> mappedAccounts[index] = w
+              ? vaultAccounts.writeGlamVault() : vaultAccounts.readGlamVault();
+          case "glam_signer" -> accountConfig.createFeePayerAccount();
+          case "cpi_program" -> accountConfig.createReadCpiProgram();
+          default -> throw new IllegalStateException("Unknown dynamic account type: " + accountConfig.name());
+        };
+      };
+
+      final var cpiDiscriminator = ixMapConfig.cpiDiscriminator();
+      final var ixProxy = ixMapConfig.createProxy(readCpiProgram, invokedProxyProgram, dynamicAccountFactory);
+      ixProxies.put(cpiDiscriminator, ixProxy);
+    }
+
+    return ixProxies;
+  }
+
   @Test
-  void testGlamIx() {
+  void testPayerProxy() {
+    final var mappingJson = """
+        {
+          "program_id": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+          "instructions": [
+            {
+              "src_ix_name": "create",
+              "src_discriminator": [
+                0
+              ],
+              "dynamic_accounts": [
+                {
+                  "name": "glam_signer",
+                  "index": 0,
+                  "writable": true,
+                  "signer": true
+                }
+              ],
+              "index_map": [
+                -1,
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            },
+            {
+              "src_ix_name": "create_idempotent",
+              "src_discriminator": [
+                1
+              ],
+              "dynamic_accounts": [
+                {
+                  "name": "glam_signer",
+                  "index": 0,
+                  "writable": true,
+                  "signer": true
+                }
+              ],
+              "index_map": [
+                -1,
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            },
+            {
+              "src_ix_name": "recover_nested",
+              "src_discriminator": [
+                2
+              ]
+            }
+          ]
+        }""";
+
+    final var ixProxies = createProxies(mappingJson);
+
+    assertEquals(3, ixProxies.size());
+
+    var ixProxy = ixProxies.get(Discriminator.toDiscriminator(0));
+    assertNotNull(ixProxy);
+    assertEquals(ixProxy.proxyDiscriminator(), ixProxy.cpiDiscriminator());
+
+    assertInstanceOf(PayerIxProxy.class, ixProxy);
+    var payerProxy = (PayerIxProxy<GlamVaultAccounts>) ixProxy;
+    assertEquals(0, payerProxy.payerIndex);
+
+    final var associatedTokenAccountProgram = SolanaAccounts.MAIN_NET.associatedTokenAccountProgram();
+    assertEquals(associatedTokenAccountProgram, payerProxy.invokedProxyProgram.publicKey());
+    assertEquals(associatedTokenAccountProgram, payerProxy.readCpiProgram.publicKey());
+  }
+
+  @Test
+  void testGlamDriftRemapping() {
     final var mappingJson = """
         {
           "program_id": "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
@@ -486,47 +607,9 @@ final class GlamIxTests {
           ]
         }""";
 
-    final var invokedProxyProgram = AccountMeta.createInvoked(PublicKey.NONE);
-    final var ji = JsonIterator.parse(mappingJson);
+    final var ixProxies = createProxies(mappingJson);
 
-    final var accountMetaCache = new HashMap<AccountMeta, AccountMeta>();
-    final var indexedAccountMetaCache = new HashMap<IndexedAccountMeta, IndexedAccountMeta>();
-
-    final var programMapConfig = ProgramMapConfig.parseConfig(accountMetaCache, indexedAccountMetaCache, ji);
-    final var readCpiProgram = programMapConfig.readCpiProgram();
-
-    final var ixMapConfigs = programMapConfig.ixMapConfigs();
-
-    record GlamVaultAccounts(AccountMeta readGlamState,
-                             AccountMeta writeGlamState,
-                             AccountMeta readGlamVault,
-                             AccountMeta writeGlamVault) {
-
-    }
-
-    final var ixProxies = HashMap.<Discriminator, IxProxy<GlamVaultAccounts>>newHashMap(ixMapConfigs.size());
-
-    for (final var ixMapConfig : ixMapConfigs) {
-      final Function<DynamicAccountConfig, DynamicAccount<GlamVaultAccounts>> dynamicAccountFactory = accountConfig -> {
-        final int index = accountConfig.index();
-        final boolean w = accountConfig.writable();
-        return switch (accountConfig.name()) {
-          case "glam_state" -> (mappedAccounts, _, _, vaultAccounts) -> mappedAccounts[index] = w
-              ? vaultAccounts.writeGlamState() : vaultAccounts.readGlamState();
-          case "glam_vault" -> (mappedAccounts, _, _, vaultAccounts) -> mappedAccounts[index] = w
-              ? vaultAccounts.writeGlamVault() : vaultAccounts.readGlamVault();
-          case "glam_signer" -> accountConfig.createFeePayerAccount();
-          case "cpi_program" -> accountConfig.createReadCpiProgram();
-          default -> throw new IllegalStateException("Unknown dynamic account type: " + accountConfig.name());
-        };
-      };
-
-      final var cpiDiscriminator = ixMapConfig.cpiDiscriminator();
-      final var ixProxy = ixMapConfig.createProxy(readCpiProgram, invokedProxyProgram, dynamicAccountFactory);
-      ixProxies.put(cpiDiscriminator, ixProxy);
-    }
-
-    assertEquals(8, ixMapConfigs.size());
+    assertEquals(8, ixProxies.size());
 
     var ixProxy = ixProxies.get(Discriminator.toDiscriminator(186, 85, 17, 249, 219, 231, 98, 251));
     assertNotNull(ixProxy);

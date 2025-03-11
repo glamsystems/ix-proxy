@@ -86,12 +86,9 @@ public record ProgramMapConfig(AccountMeta readCpiProgram,
         return new ProgramMapConfig(readProgram, ixMapConfigs, 0);
       } else {
         final var iterator = ixMapConfigs.iterator();
-        var ixMapConfig = iterator.next();
-        int discriminatorLength = ixMapConfig.proxyDiscriminator().length();
+        final int discriminatorLength = iterator.next().cpiDiscriminator().length();
         while (iterator.hasNext()) {
-          ixMapConfig = iterator.next();
-          final int len = ixMapConfig.proxyDiscriminator().length();
-          if (len != discriminatorLength) {
+          if (iterator.next().cpiDiscriminator().length() != discriminatorLength) {
             return new ProgramMapConfig(readProgram, ixMapConfigs, -1);
           }
         }

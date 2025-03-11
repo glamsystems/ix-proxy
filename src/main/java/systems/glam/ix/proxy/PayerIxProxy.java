@@ -8,7 +8,7 @@ import java.util.Arrays;
 
 final class PayerIxProxy<A> extends BaseIxProxy<A> {
 
-  private final int payerIndex;
+  final int payerIndex;
 
   PayerIxProxy(final AccountMeta readCpiProgram,
                final AccountMeta invokedProxyProgram,

@@ -53,7 +53,7 @@ public record IxMapConfig(String cpiIxName,
         }
         final long numRemoved = Arrays.stream(indexMap).filter(i -> i < 0).count();
         if (numRemoved != 1) {
-          throw new IllegalStateException("Invalid configuration: Index map must remove exactly one account.");
+          throw new IllegalStateException("Invalid configuration: Index map must remove exactly one payer account.");
         }
         return new PayerIxProxy<>(
             readCpiProgram,

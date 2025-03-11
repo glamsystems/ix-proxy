@@ -9,8 +9,8 @@ import java.util.Base64;
 
 abstract class BaseIxProxy<A> implements IxProxy<A> {
 
-  protected final AccountMeta readCpiProgram;
-  protected final AccountMeta invokedProxyProgram;
+  final AccountMeta readCpiProgram;
+  final AccountMeta invokedProxyProgram;
   protected final Discriminator cpiDiscriminator;
   private final byte[] cpiDiscriminatorBytes;
 
