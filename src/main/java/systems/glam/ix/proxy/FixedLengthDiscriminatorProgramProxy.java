@@ -1,5 +1,6 @@
 package systems.glam.ix.proxy;
 
+import software.sava.core.accounts.meta.AccountMeta;
 import software.sava.core.programs.Discriminator;
 import software.sava.core.tx.Instruction;
 
@@ -10,8 +11,10 @@ final class FixedLengthDiscriminatorProgramProxy<A> extends BaseProgramProxy<A> 
   private final int discriminatorLength;
   private final Map<Discriminator, IxProxy<A>> ixProxyMap;
 
-  FixedLengthDiscriminatorProgramProxy(final int discriminatorLength,
+  FixedLengthDiscriminatorProgramProxy(final AccountMeta readCpiProgram,
+                                       final int discriminatorLength,
                                        final Map<Discriminator, IxProxy<A>> ixProxyMap) {
+    super(readCpiProgram);
     this.discriminatorLength = discriminatorLength;
     this.ixProxyMap = ixProxyMap;
   }

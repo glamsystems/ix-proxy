@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-public interface TransactionMapper<A> extends ProgramProxy<A> {
+public interface TransactionMapper<A> extends IxMapper<A> {
 
   static <A> TransactionMapper<A> createMapper(final Map<PublicKey, ProgramProxy<A>> programProxyMap) {
     return new ProgramProxyMap<>(programProxyMap);

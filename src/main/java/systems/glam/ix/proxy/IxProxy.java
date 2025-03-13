@@ -8,8 +8,7 @@ import java.util.List;
 
 public interface IxProxy<A> {
 
-  static <A> IxProxy<A> createProxy(final AccountMeta readCpiProgram,
-                                    final AccountMeta invokedProxyProgram,
+  static <A> IxProxy<A> createProxy(final AccountMeta invokedProxyProgram,
                                     final Discriminator cpiDiscriminator,
                                     final Discriminator proxyDiscriminator,
                                     final List<DynamicAccount<A>> dynamicAccounts,
@@ -22,7 +21,6 @@ public interface IxProxy<A> {
       }
     }
     return new IxProxyRecord<>(
-        readCpiProgram,
         invokedProxyProgram,
         cpiDiscriminator,
         proxyDiscriminator,
@@ -33,12 +31,14 @@ public interface IxProxy<A> {
     );
   }
 
-  Instruction mapInstruction(final AccountMeta feePayer,
+  Instruction mapInstruction(final AccountMeta readCpiProgram,
+                             final AccountMeta feePayer,
                              final A runtimeAccounts,
                              final Instruction instruction);
 
   /// Does not validate the expected program id or discriminators from the given instruction.
-  Instruction mapInstructionUnchecked(final AccountMeta feePayer,
+  Instruction mapInstructionUnchecked(final AccountMeta readCpiProgram,
+                                      final AccountMeta feePayer,
                                       final A runtimeAccounts,
                                       final Instruction instruction);
 
@@ -47,10 +47,6 @@ public interface IxProxy<A> {
   boolean matchesCpiDiscriminator(final byte[] instructionData,
                                   final int offset,
                                   final int length);
-
-  default boolean matchesCpiDiscriminator(final Instruction instruction) {
-    return matchesCpiDiscriminator(instruction.data(), instruction.offset(), instruction.len());
-  }
 
   Discriminator proxyDiscriminator();
 }

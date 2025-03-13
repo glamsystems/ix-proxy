@@ -10,16 +10,14 @@ final class PayerIxProxy<A> extends BaseIxProxy<A> {
 
   final int payerIndex;
 
-  PayerIxProxy(final AccountMeta readCpiProgram,
-               final AccountMeta invokedProxyProgram,
-               final Discriminator cpiDiscriminator,
-               final int payerIndex) {
-    super(readCpiProgram, invokedProxyProgram, cpiDiscriminator);
+  PayerIxProxy(final Discriminator cpiDiscriminator, final int payerIndex) {
+    super(cpiDiscriminator);
     this.payerIndex = payerIndex;
   }
 
   @Override
-  public Instruction mapInstructionUnchecked(final AccountMeta feePayer,
+  public Instruction mapInstructionUnchecked(final AccountMeta readCpiProgram,
+                                             final AccountMeta feePayer,
                                              final A runtimeAccounts,
                                              final Instruction instruction) {
     final var accounts = instruction.accounts();

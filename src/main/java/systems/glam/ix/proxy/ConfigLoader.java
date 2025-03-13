@@ -24,15 +24,9 @@ import java.util.stream.IntStream;
 import static java.nio.file.StandardOpenOption.*;
 import static systems.comodal.jsoniter.JsonIterator.fieldEquals;
 
-public record ConfigLoader(Path configDirectory, Set<URI> remoteConfigs) {
+public record ConfigLoader(Path configDirectory, Set<ConfigResource> remoteConfigs) {
 
   private static final System.Logger logger = System.getLogger(ConfigLoader.class.getName());
-
-  public static ConfigLoader parseConfig(final JsonIterator ji) {
-    final var parser = new Parser();
-    ji.testObject(parser);
-    return parser.create();
-  }
 
   public List<ProgramMapConfig> loadLocalConfigs() {
     if (configDirectory == null) {
@@ -77,7 +71,7 @@ public record ConfigLoader(Path configDirectory, Set<URI> remoteConfigs) {
       final var indexedAccountMetaCache = new HashMap<IndexedAccountMeta, IndexedAccountMeta>(256);
 
       final int numRemoteConfigs = remoteConfigs.size();
-      final var workQueue = new ArrayBlockingQueue<URI>(numRemoteConfigs);
+      final var workQueue = new ArrayBlockingQueue<ConfigResource>(numRemoteConfigs);
       workQueue.addAll(remoteConfigs);
       final long maxDelayMillis = maxDelay.toMillis();
       final var futureResults = IntStream.range(0, numThreads)
@@ -95,7 +89,7 @@ public record ConfigLoader(Path configDirectory, Set<URI> remoteConfigs) {
     }
   }
 
-  private record Worker(Queue<URI> workQueue,
+  private record Worker(Queue<ConfigResource> workQueue,
                         HttpClient httpClient,
                         boolean cacheFiles,
                         Path configDirectory,
@@ -110,11 +104,11 @@ public record ConfigLoader(Path configDirectory, Set<URI> remoteConfigs) {
       final var results = new ArrayList<ProgramMapConfig>();
       try {
         for (; ; ) {
-          final var uri = workQueue.poll();
-          if (uri == null) {
+          final var configResource = workQueue.poll();
+          if (configResource == null) {
             return results;
           }
-          final var request = HttpRequest.newBuilder(uri).GET().build();
+          final var request = HttpRequest.newBuilder(configResource.uri).GET().build();
           for (long errorCount = 0; ; ) {
 
             final byte[] responseData;
@@ -129,7 +123,7 @@ public record ConfigLoader(Path configDirectory, Set<URI> remoteConfigs) {
               logger.log(System.Logger.Level.WARNING, String.format("""
                       Failed %d time(s) to fetch remote config %s.
                       Retrying in %dms.
-                      """, errorCount, uri, delayMillis
+                      """, errorCount, configResource, delayMillis
                   )
               );
               Thread.sleep(delayMillis);
@@ -141,7 +135,7 @@ public record ConfigLoader(Path configDirectory, Set<URI> remoteConfigs) {
             results.add(programMapConfig);
 
             if (cacheFiles) {
-              final var configFile = configDirectory.resolve(programMapConfig.cpiProgram().toBase58() + ".json");
+              final var configFile = configDirectory.resolve(configResource.fileName);
               try {
                 Files.write(configFile, responseData, CREATE, WRITE, TRUNCATE_EXISTING);
               } catch (final IOException e) {
@@ -158,28 +152,65 @@ public record ConfigLoader(Path configDirectory, Set<URI> remoteConfigs) {
     }
   }
 
+  public record ConfigResource(URI uri, String fileName) {
+
+  }
+
+  public static ConfigLoader parseConfig(final JsonIterator ji) {
+    final var parser = new Parser();
+    ji.testObject(parser);
+    return parser.create();
+  }
+
+  private static final class ConfigResourceParser implements FieldBufferPredicate {
+
+    private URI uri;
+    private String fileName;
+
+    ConfigResourceParser() {
+    }
+
+    ConfigResource create() {
+      return new ConfigResource(uri, fileName);
+    }
+
+    @Override
+    public boolean test(final char[] buf, final int offset, final int len, final JsonIterator ji) {
+      if (fieldEquals("uri", buf, offset, len)) {
+        this.uri = URI.create(ji.readString());
+      } else if (fieldEquals("file_name", buf, offset, len)) {
+        this.fileName = ji.readString();
+      } else {
+        throw new IllegalStateException("Unknown configuration field " + new String(buf, offset, len));
+      }
+      return true;
+    }
+  }
+
   private static final class Parser implements FieldBufferPredicate {
 
     private Path configDirectory;
-    private Set<URI> remoteConfigs;
+    private Set<ConfigResource> configs;
 
     Parser() {
     }
 
     ConfigLoader create() {
-      return new ConfigLoader(configDirectory, remoteConfigs);
+      return new ConfigLoader(configDirectory, configs);
     }
 
     @Override
     public boolean test(final char[] buf, final int offset, final int len, final JsonIterator ji) {
       if (fieldEquals("local_directory", buf, offset, len)) {
         this.configDirectory = Path.of(ji.readString());
-      } else if (fieldEquals("remote_configs", buf, offset, len)) {
-        final var remoteConfigs = new HashSet<URI>();
+      } else if (fieldEquals("configs", buf, offset, len)) {
+        final var configs = new HashSet<ConfigResource>();
         while (ji.readArray()) {
-          remoteConfigs.add(URI.create(ji.readString()));
+          final var parser = new ConfigResourceParser();
+          ji.testObject(parser);
+          configs.add(parser.create());
         }
-        this.remoteConfigs = remoteConfigs;
+        this.configs = configs;
       } else {
         throw new IllegalStateException("Unknown configuration field " + new String(buf, offset, len));
       }

@@ -5,21 +5,23 @@ import software.sava.core.programs.Discriminator;
 import systems.comodal.jsoniter.FieldBufferPredicate;
 import systems.comodal.jsoniter.JsonIterator;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 
 import static systems.comodal.jsoniter.JsonIterator.fieldEquals;
 
-public record IxMapConfig(String cpiIxName,
+public record IxMapConfig(ProxyType proxyType,
+                          String cpiIxName,
                           Discriminator cpiDiscriminator,
                           String proxyIxName,
                           Discriminator proxyDiscriminator,
                           List<DynamicAccountConfig> dynamicAccounts,
                           List<IndexedAccountMeta> staticAccounts,
                           int[] indexMap) {
+
+  private enum ProxyType {
+    PAYER
+  }
 
   public static IxMapConfig parseConfig(final Map<AccountMeta, AccountMeta> accountMetaCache,
                                         final Map<IndexedAccountMeta, IndexedAccountMeta> indexedAccountMetaCache,
@@ -29,8 +31,7 @@ public record IxMapConfig(String cpiIxName,
     return parser.create();
   }
 
-  public <A> IxProxy<A> createProxy(final AccountMeta readCpiProgram,
-                                    final AccountMeta invokedProxyProgram,
+  public <A> IxProxy<A> createProxy(final AccountMeta invokedProxyProgram,
                                     final Function<DynamicAccountConfig, DynamicAccount<A>> accountMetaFactory) {
     if (proxyDiscriminator == null) {
       if (!staticAccounts.isEmpty()) {
@@ -41,11 +42,7 @@ public record IxMapConfig(String cpiIxName,
         if (indexMap.length != 0) {
           throw new IllegalStateException("Index map is not supported for IxMapConfig without a proxy discriminator and no dynamic accounts.");
         }
-        return new IdentityIxProxy<>(
-            readCpiProgram,
-            invokedProxyProgram,
-            cpiDiscriminator
-        );
+        return new IdentityIxProxy<>(cpiDiscriminator);
       } else if (numDynamicAccounts == 1) {
         final var dynamicAccount = dynamicAccounts.getFirst();
         if (!dynamicAccount.writable() || !dynamicAccount.signer()) {
@@ -55,18 +52,18 @@ public record IxMapConfig(String cpiIxName,
         if (numRemoved != 1) {
           throw new IllegalStateException("Invalid configuration: Index map must remove exactly one payer account.");
         }
-        return new PayerIxProxy<>(
-            readCpiProgram,
-            readCpiProgram,
-            cpiDiscriminator,
-            dynamicAccount.index()
-        );
+        if (indexMap[dynamicAccount.index()] >= 0) {
+          throw new IllegalStateException("Invalid configuration: Payer is not removed in the index map.");
+        }
+        if (proxyType != null && proxyType != ProxyType.PAYER) {
+          throw new IllegalStateException("Invalid configuration: Inferred proxy type was 'PAYER' but was " + proxyType);
+        }
+        return new PayerIxProxy<>(cpiDiscriminator, dynamicAccount.index());
       } else {
         throw new IllegalStateException("Invalid configuration: Only one or none dynamic accounts is supported for IxMapConfig without a proxy discriminator.");
       }
     } else {
       return IxProxy.createProxy(
-          readCpiProgram,
           invokedProxyProgram,
           cpiDiscriminator,
           proxyDiscriminator,
@@ -86,6 +83,7 @@ public record IxMapConfig(String cpiIxName,
     private final Map<AccountMeta, AccountMeta> accountMetaCache;
     private final Map<IndexedAccountMeta, IndexedAccountMeta> indexedAccountMetaCache;
 
+    private ProxyType type;
     private String cpiIxName;
     private Discriminator cpiDiscriminator;
     private String proxyIxName;
@@ -102,6 +100,7 @@ public record IxMapConfig(String cpiIxName,
 
     private IxMapConfig create() {
       return new IxMapConfig(
+          type,
           cpiIxName,
           cpiDiscriminator,
           proxyIxName,
@@ -129,7 +128,9 @@ public record IxMapConfig(String cpiIxName,
 
     @Override
     public boolean test(final char[] buf, final int offset, final int len, final JsonIterator ji) {
-      if (fieldEquals("src_ix_name", buf, offset, len)) {
+      if (fieldEquals("type", buf, offset, len)) {
+        type = ProxyType.valueOf(ji.readString().toUpperCase(Locale.ENGLISH));
+      } else if (fieldEquals("src_ix_name", buf, offset, len)) {
         cpiIxName = ji.readString();
       } else if (fieldEquals("src_discriminator", buf, offset, len)) {
         cpiDiscriminator = parseDiscriminator(ji);

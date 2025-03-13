@@ -1,5 +1,6 @@
 package systems.glam.ix.proxy;
 
+import software.sava.core.accounts.meta.AccountMeta;
 import software.sava.core.tx.Instruction;
 
 import java.util.List;
@@ -8,7 +9,8 @@ final class ProgramProxyRecord<A> extends BaseProgramProxy<A> implements Program
 
   private final List<IxProxy<A>> ixProxyList;
 
-  ProgramProxyRecord(final List<IxProxy<A>> ixProxyList) {
+  ProgramProxyRecord(final AccountMeta readCpiProgram, final List<IxProxy<A>> ixProxyList) {
+    super(readCpiProgram);
     this.ixProxyList = ixProxyList;
   }
 

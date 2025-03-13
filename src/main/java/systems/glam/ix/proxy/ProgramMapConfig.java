@@ -6,43 +6,41 @@ import software.sava.core.programs.Discriminator;
 import systems.comodal.jsoniter.CharBufferFunction;
 import systems.comodal.jsoniter.FieldBufferPredicate;
 import systems.comodal.jsoniter.JsonIterator;
+import systems.comodal.jsoniter.ValueType;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 
 import static systems.comodal.jsoniter.JsonIterator.fieldEquals;
 
-public record ProgramMapConfig(AccountMeta readCpiProgram,
+public record ProgramMapConfig(Collection<AccountMeta> programs,
                                List<IxMapConfig> ixMapConfigs,
                                int discriminatorLength) {
-
-  public PublicKey cpiProgram() {
-    return readCpiProgram.publicKey();
-  }
 
   public boolean fixedLengthDiscriminator() {
     return discriminatorLength > 0;
   }
 
-  public <A> ProgramProxy<A> createProgramProxy(final AccountMeta invokedProxyProgram,
-                                                final Function<DynamicAccountConfig, DynamicAccount<A>> dynamicAccountFactory) {
+  public <A> Collection<ProgramProxy<A>> createProgramProxies(final AccountMeta invokedProxyProgram,
+                                                              final Function<DynamicAccountConfig, DynamicAccount<A>> dynamicAccountFactory) {
     if (fixedLengthDiscriminator()) {
       final var ixProxies = HashMap.<Discriminator, IxProxy<A>>newHashMap(ixMapConfigs.size());
       for (final var ixMapConfig : ixMapConfigs) {
-        final var ixProxy = ixMapConfig.createProxy(readCpiProgram, invokedProxyProgram, dynamicAccountFactory);
+        final var ixProxy = ixMapConfig.createProxy(invokedProxyProgram, dynamicAccountFactory);
         ixProxies.put(ixProxy.cpiDiscriminator(), ixProxy);
       }
-      return ProgramProxy.createProxy(discriminatorLength, ixProxies);
+      return programs.stream()
+          .map(program -> ProgramProxy.createProxy(program, discriminatorLength, ixProxies))
+          .toList();
     } else {
       final var ixProxies = new ArrayList<IxProxy<A>>(ixMapConfigs.size());
       for (final var ixMapConfig : ixMapConfigs) {
-        final var ixProxy = ixMapConfig.createProxy(readCpiProgram, invokedProxyProgram, dynamicAccountFactory);
+        final var ixProxy = ixMapConfig.createProxy(invokedProxyProgram, dynamicAccountFactory);
         ixProxies.add(ixProxy);
       }
-      return ProgramProxy.createProxy(ixProxies);
+      return programs.stream()
+          .map(program -> ProgramProxy.createProxy(program, ixProxies))
+          .toList();
     }
   }
 
@@ -51,7 +49,10 @@ public record ProgramMapConfig(AccountMeta readCpiProgram,
                                                                          final List<ProgramMapConfig> programMapConfigs) {
     final var proxies = new HashMap<PublicKey, ProgramProxy<A>>(programMapConfigs.size());
     for (final var programMapConfig : programMapConfigs) {
-      proxies.put(programMapConfig.cpiProgram(), programMapConfig.createProgramProxy(invokedProxyProgram, dynamicAccountFactory));
+      final var programProxies = programMapConfig.createProgramProxies(invokedProxyProgram, dynamicAccountFactory);
+      for (final var programProxy : programProxies) {
+        proxies.put(programProxy.cpiProgram(), programProxy);
+      }
     }
     return proxies;
   }
@@ -71,7 +72,7 @@ public record ProgramMapConfig(AccountMeta readCpiProgram,
     private final Map<AccountMeta, AccountMeta> accountMetaCache;
     private final Map<IndexedAccountMeta, IndexedAccountMeta> indexedAccountMetaCache;
 
-    private PublicKey program;
+    private Collection<AccountMeta> programs;
     private List<IxMapConfig> ixMapConfigs;
 
     private Parser(final Map<AccountMeta, AccountMeta> accountMetaCache,
@@ -81,25 +82,32 @@ public record ProgramMapConfig(AccountMeta readCpiProgram,
     }
 
     private ProgramMapConfig create() {
-      final var readProgram = AccountMeta.createRead(program);
       if (ixMapConfigs.isEmpty()) {
-        return new ProgramMapConfig(readProgram, ixMapConfigs, 0);
+        return new ProgramMapConfig(programs, ixMapConfigs, 0);
       } else {
         final var iterator = ixMapConfigs.iterator();
         final int discriminatorLength = iterator.next().cpiDiscriminator().length();
         while (iterator.hasNext()) {
           if (iterator.next().cpiDiscriminator().length() != discriminatorLength) {
-            return new ProgramMapConfig(readProgram, ixMapConfigs, -1);
+            return new ProgramMapConfig(programs, ixMapConfigs, -1);
           }
         }
-        return new ProgramMapConfig(readProgram, ixMapConfigs, discriminatorLength);
+        return new ProgramMapConfig(programs, ixMapConfigs, discriminatorLength);
       }
     }
 
     @Override
     public boolean test(final char[] buf, final int offset, final int len, final JsonIterator ji) {
       if (fieldEquals("program_id", buf, offset, len)) {
-        this.program = ji.applyChars(PARSE_BASE58_PUBLIC_KEY);
+        if (ji.whatIsNext() == ValueType.ARRAY) {
+          final var programs = new HashSet<AccountMeta>();
+          while (ji.readArray()) {
+            programs.add(AccountMeta.createRead(ji.applyChars(PARSE_BASE58_PUBLIC_KEY)));
+          }
+          this.programs = List.copyOf(programs);
+        } else {
+          this.programs = List.of(AccountMeta.createRead(ji.applyChars(PARSE_BASE58_PUBLIC_KEY)));
+        }
       } else if (fieldEquals("instructions", buf, offset, len)) {
         final var ixMapConfigs = new ArrayList<IxMapConfig>();
         while (ji.readArray()) {

@@ -9,25 +9,19 @@ import java.util.Base64;
 
 abstract class BaseIxProxy<A> implements IxProxy<A> {
 
-  final AccountMeta readCpiProgram;
-  final AccountMeta invokedProxyProgram;
   protected final Discriminator cpiDiscriminator;
   private final byte[] cpiDiscriminatorBytes;
 
-  protected BaseIxProxy(final AccountMeta readCpiProgram,
-                        final AccountMeta invokedProxyProgram,
-                        final Discriminator cpiDiscriminator) {
-    this.readCpiProgram = readCpiProgram;
-    this.invokedProxyProgram = invokedProxyProgram;
+  protected BaseIxProxy(final Discriminator cpiDiscriminator) {
     this.cpiDiscriminator = cpiDiscriminator;
     this.cpiDiscriminatorBytes = cpiDiscriminator.data();
   }
 
-  protected final void validateMapping(final Instruction instruction) {
+  protected final void validateMapping(final AccountMeta readCpiProgram, final Instruction instruction) {
     if (!instruction.programId().publicKey().equals(readCpiProgram.publicKey())) {
       throw new IllegalStateException(String.format("""
-              Expected CPI program to be %s, but was %s for invoked proxy program %s.""",
-          readCpiProgram.publicKey(), instruction.programId().publicKey(), invokedProxyProgram.publicKey()
+              Expected CPI program to be %s, but was %s.""",
+          readCpiProgram.publicKey(), instruction.programId().publicKey()
       ));
     }
 
@@ -54,11 +48,12 @@ abstract class BaseIxProxy<A> implements IxProxy<A> {
   }
 
   @Override
-  public final Instruction mapInstruction(final AccountMeta feePayer,
+  public final Instruction mapInstruction(final AccountMeta readCpiProgram,
+                                          final AccountMeta feePayer,
                                           final A runtimeAccounts,
                                           final Instruction instruction) {
-    validateMapping(instruction);
-    return mapInstructionUnchecked(feePayer, runtimeAccounts, instruction);
+    validateMapping(readCpiProgram, instruction);
+    return mapInstructionUnchecked(readCpiProgram, feePayer, runtimeAccounts, instruction);
   }
 
   @Override

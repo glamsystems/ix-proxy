@@ -1,5 +1,6 @@
 package systems.glam.ix.proxy;
 
+import software.sava.core.accounts.PublicKey;
 import software.sava.core.accounts.meta.AccountMeta;
 import software.sava.core.tx.Instruction;
 
@@ -7,7 +8,10 @@ import java.util.Base64;
 
 abstract class BaseProgramProxy<A> implements ProgramProxy<A> {
 
-  protected BaseProgramProxy() {
+  private final AccountMeta readCpiProgram;
+
+  protected BaseProgramProxy(final AccountMeta readCpiProgram) {
+    this.readCpiProgram = readCpiProgram;
   }
 
   protected abstract IxProxy<A> lookupProxy(final Instruction instruction);
@@ -22,11 +26,16 @@ abstract class BaseProgramProxy<A> implements ProgramProxy<A> {
   }
 
   @Override
+  public final PublicKey cpiProgram() {
+    return readCpiProgram.publicKey();
+  }
+
+  @Override
   public final Instruction mapInstruction(final AccountMeta feePayer,
                                           final A runtimeAccounts,
                                           final Instruction instruction) {
     final var proxy = lookupProxyOrThrow(instruction);
-    return proxy.mapInstruction(feePayer, runtimeAccounts, instruction);
+    return proxy.mapInstruction(readCpiProgram, feePayer, runtimeAccounts, instruction);
   }
 
   @Override
@@ -34,6 +43,6 @@ abstract class BaseProgramProxy<A> implements ProgramProxy<A> {
                                                    final A runtimeAccounts,
                                                    final Instruction instruction) {
     final var proxy = lookupProxyOrThrow(instruction);
-    return proxy.mapInstructionUnchecked(feePayer, runtimeAccounts, instruction);
+    return proxy.mapInstructionUnchecked(readCpiProgram, feePayer, runtimeAccounts, instruction);
   }
 }

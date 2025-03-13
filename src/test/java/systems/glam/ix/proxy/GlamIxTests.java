@@ -2,7 +2,6 @@ package systems.glam.ix.proxy;
 
 import org.junit.jupiter.api.Test;
 import software.sava.core.accounts.PublicKey;
-import software.sava.core.accounts.SolanaAccounts;
 import software.sava.core.accounts.meta.AccountMeta;
 import software.sava.core.programs.Discriminator;
 import systems.comodal.jsoniter.JsonIterator;
@@ -29,7 +28,6 @@ final class GlamIxTests {
     final var indexedAccountMetaCache = new HashMap<IndexedAccountMeta, IndexedAccountMeta>();
 
     final var programMapConfig = ProgramMapConfig.parseConfig(accountMetaCache, indexedAccountMetaCache, ji);
-    final var readCpiProgram = programMapConfig.readCpiProgram();
 
     final var ixMapConfigs = programMapConfig.ixMapConfigs();
 
@@ -51,7 +49,7 @@ final class GlamIxTests {
       };
 
       final var cpiDiscriminator = ixMapConfig.cpiDiscriminator();
-      final var ixProxy = ixMapConfig.createProxy(readCpiProgram, invokedProxyProgram, dynamicAccountFactory);
+      final var ixProxy = ixMapConfig.createProxy(invokedProxyProgram, dynamicAccountFactory);
       ixProxies.put(cpiDiscriminator, ixProxy);
     }
 
@@ -128,10 +126,6 @@ final class GlamIxTests {
     assertInstanceOf(PayerIxProxy.class, ixProxy);
     var payerProxy = (PayerIxProxy<GlamVaultAccounts>) ixProxy;
     assertEquals(0, payerProxy.payerIndex);
-
-    final var associatedTokenAccountProgram = SolanaAccounts.MAIN_NET.associatedTokenAccountProgram();
-    assertEquals(associatedTokenAccountProgram, payerProxy.invokedProxyProgram.publicKey());
-    assertEquals(associatedTokenAccountProgram, payerProxy.readCpiProgram.publicKey());
   }
 
   @Test

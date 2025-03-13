@@ -9,6 +9,7 @@ import java.util.List;
 
 final class IxProxyRecord<A> extends BaseIxProxy<A> {
 
+  private final AccountMeta invokedProxyProgram;
   private final Discriminator proxyDiscriminator;
   final List<DynamicAccount<A>> dynamicAccounts;
   final List<IndexedAccountMeta> staticAccounts;
@@ -16,15 +17,15 @@ final class IxProxyRecord<A> extends BaseIxProxy<A> {
   private final int numAccounts;
   private final int lengthDelta;
 
-  IxProxyRecord(final AccountMeta readCpiProgram,
-                final AccountMeta invokedProxyProgram,
+  IxProxyRecord(final AccountMeta invokedProxyProgram,
                 final Discriminator cpiDiscriminator,
                 final Discriminator proxyDiscriminator,
                 final List<DynamicAccount<A>> dynamicAccounts,
                 final List<IndexedAccountMeta> staticAccounts,
                 final int[] indexes,
                 final int numAccounts) {
-    super(readCpiProgram, invokedProxyProgram, cpiDiscriminator);
+    super(cpiDiscriminator);
+    this.invokedProxyProgram = invokedProxyProgram;
     this.proxyDiscriminator = proxyDiscriminator;
     this.dynamicAccounts = dynamicAccounts;
     this.staticAccounts = staticAccounts;
@@ -34,7 +35,8 @@ final class IxProxyRecord<A> extends BaseIxProxy<A> {
   }
 
   @Override
-  public Instruction mapInstructionUnchecked(final AccountMeta feePayer,
+  public Instruction mapInstructionUnchecked(final AccountMeta readCpiProgram,
+                                             final AccountMeta feePayer,
                                              final A runtimeAccounts,
                                              final Instruction instruction) {
     final var accounts = instruction.accounts();

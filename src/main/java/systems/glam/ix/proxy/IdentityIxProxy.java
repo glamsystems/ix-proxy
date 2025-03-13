@@ -6,14 +6,12 @@ import software.sava.core.tx.Instruction;
 
 final class IdentityIxProxy<A> extends BaseIxProxy<A> {
 
-  IdentityIxProxy(final AccountMeta readCpiProgram,
-                  final AccountMeta invokedProxyProgram,
-                  final Discriminator cpiDiscriminator) {
-    super(readCpiProgram, invokedProxyProgram, cpiDiscriminator);
+  IdentityIxProxy(final Discriminator cpiDiscriminator) {
+    super(cpiDiscriminator);
   }
 
   @Override
-  public Instruction mapInstructionUnchecked(final AccountMeta feePayer,
+  public Instruction mapInstructionUnchecked(final AccountMeta readCpiProgram, final AccountMeta feePayer,
                                              final A runtimeAccounts,
                                              final Instruction instruction) {
     return instruction;
