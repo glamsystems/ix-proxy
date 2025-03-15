@@ -19,7 +19,7 @@ public record DynamicAccountConfig(String name,
   }
 
   public AccountMeta createMeta(final PublicKey publicKey) {
-    return IndexedAccountMeta.createMeta(publicKey, writable, signer);
+    return AccountMeta.createMeta(publicKey, writable, signer);
   }
 
   public <A> DynamicAccount<A> createFeePayerAccount() {

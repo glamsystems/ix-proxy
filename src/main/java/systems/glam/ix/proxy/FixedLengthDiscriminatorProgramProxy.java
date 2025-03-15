@@ -20,8 +20,13 @@ final class FixedLengthDiscriminatorProgramProxy<A> extends BaseProgramProxy<A> 
   }
 
   @Override
-  protected IxProxy<A> lookupProxy(final Instruction instruction) {
-    final var discriminator = instruction.wrapDiscriminator(discriminatorLength);
+  public IxProxy<A> lookupProxy(final Discriminator discriminator) {
     return ixProxyMap.get(discriminator);
+  }
+
+  @Override
+  public IxProxy<A> lookupProxy(final Instruction instruction) {
+    final var discriminator = instruction.wrapDiscriminator(discriminatorLength);
+    return lookupProxy(discriminator);
   }
 }

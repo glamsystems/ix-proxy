@@ -2,6 +2,7 @@ package systems.glam.ix.proxy;
 
 import software.sava.core.accounts.PublicKey;
 import software.sava.core.accounts.meta.AccountMeta;
+import software.sava.core.programs.Discriminator;
 import software.sava.core.tx.Instruction;
 
 import java.util.Base64;
@@ -14,9 +15,18 @@ abstract class BaseProgramProxy<A> implements ProgramProxy<A> {
     this.readCpiProgram = readCpiProgram;
   }
 
-  protected abstract IxProxy<A> lookupProxy(final Instruction instruction);
+  @Override
+  public final IxProxy<A> lookupProxyOrThrow(final Discriminator discriminator) {
+    final var proxy = lookupProxy(discriminator);
+    if (proxy == null) {
+      throw new IllegalStateException("Unsupported discriminator: " + Base64.getEncoder().encodeToString(discriminator.data()));
+    } else {
+      return proxy;
+    }
+  }
 
-  private IxProxy<A> lookupProxyOrThrow(final Instruction instruction) {
+  @Override
+  public final IxProxy<A> lookupProxyOrThrow(final Instruction instruction) {
     final var proxy = lookupProxy(instruction);
     if (proxy == null) {
       throw new IllegalStateException("Unsupported instruction: " + Base64.getEncoder().encodeToString(instruction.data()));

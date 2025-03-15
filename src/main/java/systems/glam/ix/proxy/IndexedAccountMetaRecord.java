@@ -34,7 +34,7 @@ record IndexedAccountMetaRecord(AccountMeta accountMeta, int index) implements I
     }
 
     IndexedAccountMeta create() {
-      final var accountMeta = IndexedAccountMeta.createMeta(account, writable, signer);
+      final var accountMeta = AccountMeta.createMeta(account, writable, signer);
       final var cachedMeta = accountMetaCache.putIfAbsent(accountMeta, accountMeta);
 
       final var indexedMeta = new IndexedAccountMetaRecord(cachedMeta == null ? accountMeta : cachedMeta, index);
