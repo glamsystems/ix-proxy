@@ -140,11 +140,30 @@ final class GlamIxTests {
     );
   }
 
-  private static void validateMappedIx(final Instruction sourceIx,
+  private static void validateGlamAccounts(final PublicKey feePayer,
+                                           final GlamVaultAccounts vaultAccounts,
+                                           final Instruction sourceIx,
+                                           final Instruction mappedIx) {
+    final var mappedAccounts = mappedIx.accounts();
+    assertEquals(vaultAccounts.readGlamState.publicKey(), mappedAccounts.getFirst().publicKey());
+    assertEquals(vaultAccounts.writeGlamVault, mappedAccounts.get(1));
+
+    final var mappedFeePayer = mappedAccounts.get(2);
+    assertEquals(feePayer, mappedFeePayer.publicKey());
+    assertTrue(mappedFeePayer.signer());
+    assertTrue(mappedFeePayer.write());
+
+    assertEquals(sourceIx.programId().publicKey(), mappedAccounts.get(3).publicKey());
+  }
+
+  private static void validateMappedIx(final PublicKey feePayer,
+                                       final GlamVaultAccounts vaultAccounts,
+                                       final Instruction sourceIx,
                                        final Discriminator sourceDiscriminator,
                                        final Instruction mappedIx,
                                        final Discriminator proxyDiscriminator) {
     assertEquals(INVOKED_PROGRAM, mappedIx.programId().publicKey());
+    validateGlamAccounts(feePayer, vaultAccounts, sourceIx, mappedIx);
 
     final int srcDiscriminatorLen = sourceDiscriminator.length();
     assertEquals(sourceDiscriminator, sourceIx.wrapDiscriminator(srcDiscriminatorLen));
@@ -558,12 +577,16 @@ final class GlamIxTests {
 
     final var mappedTransferIx = mappedInstructions[1];
     validateMappedIx(
+        feePayer.publicKey(),
+        vaultAccounts,
         systemTransferIx, Discriminator.toDiscriminator(2, 0, 0, 0),
         mappedTransferIx, Discriminator.toDiscriminator(167, 164, 195, 155, 219, 152, 191, 230)
     );
 
     final var mappedDepositIx = mappedInstructions[3];
     validateMappedIx(
+        feePayer.publicKey(),
+        vaultAccounts,
         depositIx, Discriminator.toDiscriminator(242, 35, 198, 137, 82, 225, 242, 182),
         mappedDepositIx, Discriminator.toDiscriminator(252, 63, 250, 201, 98, 55, 130, 12)
     );
@@ -777,6 +800,8 @@ final class GlamIxTests {
 
     final var mappedUnstakeIx = mappedInstructions[1];
     validateMappedIx(
+        feePayer.publicKey(),
+        vaultAccounts,
         unstakeIx, Discriminator.toDiscriminator(97, 167, 144, 107, 117, 190, 128, 36),
         mappedUnstakeIx, Discriminator.toDiscriminator(202, 3, 33, 27, 183, 156, 57, 231)
     );
