@@ -13,10 +13,17 @@ import java.util.Map;
 
 final class ProgramProxyMap<A> implements TransactionMapper<A> {
 
+  private final PublicKey invokedProxyProgram;
   private final Map<PublicKey, ProgramProxy<A>> programProxyMap;
 
-  ProgramProxyMap(final Map<PublicKey, ProgramProxy<A>> programProxyMap) {
+  ProgramProxyMap(final PublicKey invokedProxyProgram, final Map<PublicKey, ProgramProxy<A>> programProxyMap) {
+    this.invokedProxyProgram = invokedProxyProgram;
     this.programProxyMap = programProxyMap;
+  }
+
+  @Override
+  public PublicKey invokedProxyProgram() {
+    return invokedProxyProgram;
   }
 
   @Override

@@ -2,12 +2,18 @@ package systems.glam.ix.proxy;
 
 import org.junit.jupiter.api.Test;
 import software.sava.core.accounts.PublicKey;
+import software.sava.core.accounts.SolanaAccounts;
 import software.sava.core.accounts.meta.AccountMeta;
+import software.sava.core.encoding.ByteUtil;
 import software.sava.core.programs.Discriminator;
 import software.sava.core.tx.Instruction;
 import systems.comodal.jsoniter.FieldBufferPredicate;
 import systems.comodal.jsoniter.JsonIterator;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Function;
 
@@ -16,15 +22,24 @@ import static systems.comodal.jsoniter.JsonIterator.fieldEquals;
 
 final class GlamIxTests {
 
+  private static final PublicKey INVOKED_PROGRAM = PublicKey.fromBase58Encoded("GLAMbTqav9N9witRjswJ8enwp9vv5G8bsSJ2kPJ4rcyc");
+
   record GlamVaultAccounts(AccountMeta readGlamState,
                            AccountMeta writeGlamState,
                            AccountMeta readGlamVault,
                            AccountMeta writeGlamVault) {
 
+    static GlamVaultAccounts createAccounts(final PublicKey stateAccount, final PublicKey vaultAccount) {
+      return new GlamVaultAccounts(
+          AccountMeta.createRead(stateAccount),
+          AccountMeta.createWrite(stateAccount),
+          AccountMeta.createRead(vaultAccount),
+          AccountMeta.createWrite(vaultAccount)
+      );
+    }
   }
 
-  private static Collection<ProgramProxy<GlamVaultAccounts>> createProxies(final PublicKey invokedProxyProgram,
-                                                                           final String mappingJson) {
+  private static Collection<ProgramProxy<GlamVaultAccounts>> createProxies(final byte[] mappingJson) {
     final var ji = JsonIterator.parse(mappingJson);
 
     final var accountMetaCache = new HashMap<AccountMeta, AccountMeta>();
@@ -45,69 +60,43 @@ final class GlamIxTests {
         default -> throw new IllegalStateException("Unknown dynamic account type: " + accountConfig.name());
       };
     };
-    return programMapConfig.createProgramProxies(AccountMeta.createInvoked(invokedProxyProgram), dynamicAccountFactory);
+    return programMapConfig.createProgramProxies(AccountMeta.createInvoked(GlamIxTests.INVOKED_PROGRAM), dynamicAccountFactory);
   }
 
-  @Test
-  void testPayerProxy() {
-    final var mappingJson = """
-        {
-          "program_id": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
-          "instructions": [
-            {
-              "src_ix_name": "create",
-              "src_discriminator": [
-                0
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_signer",
-                  "index": 0,
-                  "writable": true,
-                  "signer": true
-                }
-              ],
-              "index_map": [
-                -1,
-                1,
-                2,
-                3,
-                4,
-                5
-              ]
-            },
-            {
-              "src_ix_name": "create_idempotent",
-              "src_discriminator": [
-                1
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_signer",
-                  "index": 0,
-                  "writable": true,
-                  "signer": true
-                }
-              ],
-              "index_map": [
-                -1,
-                1,
-                2,
-                3,
-                4,
-                5
-              ]
-            },
-            {
-              "src_ix_name": "recover_nested",
-              "src_discriminator": [
-                2
-              ]
-            }
-          ]
-        }""";
+  private static void createProxies(final Path mappingFile,
+                                    final Map<PublicKey, ProgramProxy<GlamVaultAccounts>> programProxies) {
+    try {
+      final var mappingJson = Files.readAllBytes(mappingFile);
+      final var systemProgramProxies = createProxies(mappingJson);
+      for (final var proxy : systemProgramProxies) {
+        programProxies.put(proxy.cpiProgram(), proxy);
+      }
+    } catch (final IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
 
-    final var programProxies = createProxies(PublicKey.NONE, mappingJson);
+  private static TransactionMapper<GlamVaultAccounts> createMapper() {
+    final var programProxies = new HashMap<PublicKey, ProgramProxy<GlamVaultAccounts>>();
+    try (final var paths = Files.walk(Path.of(".mappings"), 1)) {
+      paths
+          .filter(Files::isRegularFile)
+          .filter(Files::isReadable)
+          .filter(f -> f.getFileName().toString().endsWith(".json"))
+          .forEach(mappingFile -> createProxies(mappingFile, programProxies));
+      return TransactionMapper.createMapper(INVOKED_PROGRAM, programProxies);
+    } catch (final IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  private static final TransactionMapper<GlamVaultAccounts> txMapper = createMapper();
+
+  @Test
+  void testPayerProxy() throws IOException {
+    final var mappingJson = Files.readAllBytes(Path.of(".mappings/ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL.json"));
+
+    final var programProxies = createProxies(mappingJson);
     assertEquals(1, programProxies.size());
     final var programProxy = programProxies.iterator().next();
 
@@ -121,479 +110,10 @@ final class GlamIxTests {
   }
 
   @Test
-  void testGlamDriftRemapping() {
-    final var mappingJson = """
-        {
-          "program_id": "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
-          "instructions": [
-            {
-              "src_ix_name": "initialize_user",
-              "src_discriminator": [
-                111,
-                17,
-                185,
-                250,
-                60,
-                122,
-                38,
-                254
-              ],
-              "dst_ix_name": "drift_initialize_user",
-              "dst_discriminator": [
-                107,
-                244,
-                158,
-                15,
-                225,
-                239,
-                98,
-                245
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_state",
-                  "index": 0,
-                  "writable": false,
-                  "signer": false
-                },
-                {
-                  "name": "glam_vault",
-                  "index": 1,
-                  "writable": false,
-                  "signer": false
-                },
-                {
-                  "name": "glam_signer",
-                  "index": 2,
-                  "writable": true,
-                  "signer": true
-                },
-                {
-                  "name": "cpi_program",
-                  "index": 3,
-                  "writable": false,
-                  "signer": false
-                }
-              ],
-              "static_accounts": [],
-              "index_map": [
-                4,
-                5,
-                6,
-                -1,
-                7,
-                8,
-                9
-              ]
-            },
-            {
-              "src_ix_name": "initialize_user_stats",
-              "src_discriminator": [
-                254,
-                243,
-                72,
-                98,
-                251,
-                130,
-                168,
-                213
-              ],
-              "dst_ix_name": "drift_initialize_user_stats",
-              "dst_discriminator": [
-                133,
-                185,
-                103,
-                162,
-                90,
-                161,
-                78,
-                143
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_state",
-                  "index": 0,
-                  "writable": false,
-                  "signer": false
-                },
-                {
-                  "name": "glam_vault",
-                  "index": 1,
-                  "writable": false,
-                  "signer": false
-                },
-                {
-                  "name": "glam_signer",
-                  "index": 2,
-                  "writable": true,
-                  "signer": true
-                },
-                {
-                  "name": "cpi_program",
-                  "index": 3,
-                  "writable": false,
-                  "signer": false
-                }
-              ],
-              "static_accounts": [],
-              "index_map": [
-                4,
-                5,
-                -1,
-                6,
-                7,
-                8
-              ]
-            },
-            {
-              "src_ix_name": "deposit",
-              "src_discriminator": [
-                242,
-                35,
-                198,
-                137,
-                82,
-                225,
-                242,
-                182
-              ],
-              "dst_ix_name": "drift_deposit",
-              "dst_discriminator": [
-                252,
-                63,
-                250,
-                201,
-                98,
-                55,
-                130,
-                12
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_state",
-                  "index": 0,
-                  "writable": false,
-                  "signer": false
-                },
-                {
-                  "name": "glam_vault",
-                  "index": 1,
-                  "writable": true,
-                  "signer": false
-                },
-                {
-                  "name": "glam_signer",
-                  "index": 2,
-                  "writable": true,
-                  "signer": true
-                },
-                {
-                  "name": "cpi_program",
-                  "index": 3,
-                  "writable": false,
-                  "signer": false
-                }
-              ],
-              "static_accounts": [],
-              "index_map": [
-                4,
-                5,
-                6,
-                -1,
-                7,
-                8,
-                9
-              ]
-            },
-            {
-              "src_ix_name": "withdraw",
-              "src_discriminator": [
-                183,
-                18,
-                70,
-                156,
-                148,
-                109,
-                161,
-                34
-              ],
-              "dst_ix_name": "drift_withdraw",
-              "dst_discriminator": [
-                86,
-                59,
-                186,
-                123,
-                183,
-                181,
-                234,
-                137
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_state",
-                  "index": 0,
-                  "writable": false,
-                  "signer": false
-                },
-                {
-                  "name": "glam_vault",
-                  "index": 1,
-                  "writable": true,
-                  "signer": false
-                },
-                {
-                  "name": "glam_signer",
-                  "index": 2,
-                  "writable": true,
-                  "signer": true
-                },
-                {
-                  "name": "cpi_program",
-                  "index": 3,
-                  "writable": false,
-                  "signer": false
-                }
-              ],
-              "static_accounts": [],
-              "index_map": [
-                4,
-                5,
-                6,
-                -1,
-                7,
-                8,
-                9,
-                10
-              ]
-            },
-            {
-              "src_ix_name": "cancel_orders",
-              "src_discriminator": [
-                238,
-                225,
-                95,
-                158,
-                227,
-                103,
-                8,
-                194
-              ],
-              "dst_ix_name": "drift_cancel_orders",
-              "dst_discriminator": [
-                98,
-                107,
-                48,
-                79,
-                97,
-                60,
-                99,
-                58
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_state",
-                  "index": 0,
-                  "writable": false,
-                  "signer": false
-                },
-                {
-                  "name": "glam_vault",
-                  "index": 1,
-                  "writable": false,
-                  "signer": false
-                },
-                {
-                  "name": "glam_signer",
-                  "index": 2,
-                  "writable": true,
-                  "signer": true
-                },
-                {
-                  "name": "cpi_program",
-                  "index": 3,
-                  "writable": false,
-                  "signer": false
-                }
-              ],
-              "static_accounts": [],
-              "index_map": [
-                4,
-                5,
-                -1
-              ]
-            },
-            {
-              "src_ix_name": "modify_order",
-              "src_discriminator": [
-                47,
-                124,
-                117,
-                255,
-                201,
-                197,
-                130,
-                94
-              ],
-              "dst_ix_name": "drift_modify_order",
-              "dst_discriminator": [
-                235,
-                245,
-                222,
-                58,
-                245,
-                128,
-                19,
-                202
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_state",
-                  "index": 0,
-                  "writable": false,
-                  "signer": false
-                },
-                {
-                  "name": "glam_vault",
-                  "index": 1,
-                  "writable": false,
-                  "signer": false
-                },
-                {
-                  "name": "glam_signer",
-                  "index": 2,
-                  "writable": true,
-                  "signer": true
-                },
-                {
-                  "name": "cpi_program",
-                  "index": 3,
-                  "writable": false,
-                  "signer": false
-                }
-              ],
-              "static_accounts": [],
-              "index_map": [
-                4,
-                5,
-                -1
-              ]
-            },
-            {
-              "src_ix_name": "update_user_custom_margin_ratio",
-              "src_discriminator": [
-                21,
-                221,
-                140,
-                187,
-                32,
-                129,
-                11,
-                123
-              ],
-              "dst_ix_name": "drift_update_user_custom_margin_ratio",
-              "dst_discriminator": [
-                4,
-                47,
-                193,
-                177,
-                128,
-                62,
-                228,
-                14
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_state",
-                  "index": 0,
-                  "writable": false,
-                  "signer": false
-                },
-                {
-                  "name": "glam_vault",
-                  "index": 1,
-                  "writable": false,
-                  "signer": false
-                },
-                {
-                  "name": "glam_signer",
-                  "index": 2,
-                  "writable": true,
-                  "signer": true
-                },
-                {
-                  "name": "cpi_program",
-                  "index": 3,
-                  "writable": false,
-                  "signer": false
-                }
-              ],
-              "static_accounts": [],
-              "index_map": [
-                4,
-                -1
-              ]
-            },
-            {
-              "src_ix_name": "delete_user",
-              "src_discriminator": [
-                186,
-                85,
-                17,
-                249,
-                219,
-                231,
-                98,
-                251
-              ],
-              "dst_ix_name": "drift_delete_user",
-              "dst_discriminator": [
-                179,
-                118,
-                20,
-                212,
-                145,
-                146,
-                49,
-                130
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_state",
-                  "index": 0,
-                  "writable": false,
-                  "signer": false
-                },
-                {
-                  "name": "glam_vault",
-                  "index": 1,
-                  "writable": true,
-                  "signer": false
-                },
-                {
-                  "name": "glam_signer",
-                  "index": 2,
-                  "writable": true,
-                  "signer": true
-                },
-                {
-                  "name": "cpi_program",
-                  "index": 3,
-                  "writable": false,
-                  "signer": false
-                }
-              ],
-              "static_accounts": [],
-              "index_map": [
-                4,
-                5,
-                6,
-                -1
-              ]
-            }
-          ]
-        }""";
+  void testGlamDriftRemapping() throws IOException {
+    final var mappingJson = Files.readAllBytes(Path.of(".mappings/dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH.json"));
 
-    final var programProxies = createProxies(PublicKey.NONE, mappingJson);
+    final var programProxies = createProxies(mappingJson);
     assertEquals(1, programProxies.size());
     final var programProxy = programProxies.iterator().next();
 
@@ -620,523 +140,439 @@ final class GlamIxTests {
     );
   }
 
+  private static void validateMappedIx(final Instruction sourceIx,
+                                       final Discriminator sourceDiscriminator,
+                                       final Instruction mappedIx,
+                                       final Discriminator proxyDiscriminator) {
+    assertEquals(INVOKED_PROGRAM, mappedIx.programId().publicKey());
+
+    final int srcDiscriminatorLen = sourceDiscriminator.length();
+    assertEquals(sourceDiscriminator, sourceIx.wrapDiscriminator(srcDiscriminatorLen));
+    final int proxyDiscriminatorLen = proxyDiscriminator.length();
+    assertEquals(proxyDiscriminator, mappedIx.wrapDiscriminator(proxyDiscriminatorLen));
+
+    final var sourceData = sourceIx.data();
+    final var mappedData = mappedIx.data();
+    assertEquals(proxyDiscriminatorLen - srcDiscriminatorLen, mappedData.length - sourceData.length);
+
+    assertArrayEquals(
+        Arrays.copyOfRange(sourceData, srcDiscriminatorLen, sourceData.length),
+        Arrays.copyOfRange(mappedData, proxyDiscriminatorLen, mappedData.length)
+    );
+  }
+
   @Test
-  void testGlamMarinadeUnstake() {
-    final var systemProgramMappingJson = """
-        {
-          "program_id": "11111111111111111111111111111111",
-          "instructions": [
-            {
-              "type": "payer",
-              "src_ix_name": "create_account",
-              "src_discriminator": [
-                0,
-                0,
-                0,
-                0
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_signer",
-                  "index": 0,
-                  "writable": true,
-                  "signer": true
-                }
-              ],
-              "index_map": [
-                -1,
-                1
-              ]
-            },
-            {
-              "src_ix_name": "assign",
-              "src_discriminator": [
-                1,
-                0,
-                0,
-                0
-              ]
-            },
-            {
-              "src_ix_name": "transfer",
-              "src_discriminator": [
-                2,
-                0,
-                0,
-                0
-              ],
-              "dst_ix_name": "system_transfer",
-              "dst_discriminator": [
-                167,
-                164,
-                195,
-                155,
-                219,
-                152,
-                191,
-                230
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_state",
-                  "index": 0,
-                  "writable": false,
-                  "signer": false
-                },
-                {
-                  "name": "glam_vault",
-                  "index": 1,
-                  "writable": true,
-                  "signer": false
-                },
-                {
-                  "name": "glam_signer",
-                  "index": 2,
-                  "writable": true,
-                  "signer": true
-                },
-                {
-                  "name": "cpi_program",
-                  "index": 3,
-                  "writable": false,
-                  "signer": false
-                }
-              ],
-              "index_map": [
-                -1,
-                4
-              ]
-            },
-            {
-              "type": "payer",
-              "src_ix_name": "create_account_with_seed",
-              "src_discriminator": [
-                3,
-                0,
-                0,
-                0
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_signer",
-                  "index": 0,
-                  "writable": true,
-                  "signer": true
-                }
-              ],
-              "index_map": [
-                -1,
-                1
-              ]
-            },
-            {
-              "src_ix_name": "advance_nonce_account",
-              "src_discriminator": [
-                4,
-                0,
-                0,
-                0
-              ]
-            },
-            {
-              "src_ix_name": "withdraw_nonce_account",
-              "src_discriminator": [
-                5,
-                0,
-                0,
-                0
-              ]
-            },
-            {
-              "src_ix_name": "initialize_nonce_account",
-              "src_discriminator": [
-                6,
-                0,
-                0,
-                0
-              ]
-            },
-            {
-              "src_ix_name": "authorize_nonce_account",
-              "src_discriminator": [
-                7,
-                0,
-                0,
-                0
-              ]
-            },
-            {
-              "src_ix_name": "allocate",
-              "src_discriminator": [
-                8,
-                0,
-                0,
-                0
-              ]
-            },
-            {
-              "src_ix_name": "allocate_with_seed",
-              "src_discriminator": [
-                9,
-                0,
-                0,
-                0
-              ]
-            },
-            {
-              "src_ix_name": "assign_with_seed",
-              "src_discriminator": [
-                10,
-                0,
-                0,
-                0
-              ]
-            },
-            {
-              "src_ix_name": "transfer_with_seed",
-              "src_discriminator": [
-                11,
-                0,
-                0,
-                0
-              ]
-            },
-            {
-              "src_ix_name": "upgrade_nonce_account",
-              "src_discriminator": [
-                12,
-                0,
-                0,
-                0
-              ]
-            }
-          ]
-        }
+  void testGlamDriftDeposit() {
+    final var srcIxData = """
+        [
+          {
+            "programId": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+            "accounts": [
+              {
+                "publicKey": "AZpNg57C34kSTvFGVdgJuZ7sYvDTU3EGPNwNhQGqNXkD",
+                "feePayer": false,
+                "signer": true,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "GmWA1scwdESnC7PxitTJ8nNkYL4qf5JkRskc8hZ7ZFwE",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "4Uug1zHGvkYFuTGvS34Q5MnP7Bf36paXjtU6REUZnMhd",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "So11111111111111111111111111111111111111112",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "11111111111111111111111111111111",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              }
+            ],
+            "data": "AQ=="
+          },
+          {
+            "programId": "11111111111111111111111111111111",
+            "accounts": [
+              {
+                "publicKey": "4Uug1zHGvkYFuTGvS34Q5MnP7Bf36paXjtU6REUZnMhd",
+                "feePayer": false,
+                "signer": true,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "GmWA1scwdESnC7PxitTJ8nNkYL4qf5JkRskc8hZ7ZFwE",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              }
+            ],
+            "data": "AgAAAADh9QUAAAAA"
+          },
+          {
+            "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+            "accounts": [
+              {
+                "publicKey": "GmWA1scwdESnC7PxitTJ8nNkYL4qf5JkRskc8hZ7ZFwE",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              }
+            ],
+            "data": "EQ=="
+          },
+          {
+            "programId": "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
+            "accounts": [
+              {
+                "publicKey": "5zpq7DvB6UdFFvpmBPspGPNfUGoBRRCE2HHg5u3gxcsN",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "CTESGrMN2o91gtyaawyuHrGPbpjuyF1AcGqQF638wWf9",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "6kDHCuUZMmNarhbWjGNekn9G1UgT4yJHh39pwCiAY8Ff",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "4Uug1zHGvkYFuTGvS34Q5MnP7Bf36paXjtU6REUZnMhd",
+                "feePayer": false,
+                "signer": true,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "DfYCNezifxAEsQbAJ1b3j6PX3JVBe8fu11KBhxsbw5d2",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "GmWA1scwdESnC7PxitTJ8nNkYL4qf5JkRskc8hZ7ZFwE",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "3m6i4RFWEDw2Ft4tFHPJtYgmpPe21k56M3FHeWYrgGBz",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "3x85u7SWkmmr7YQGYhtjARgxwegTLJgkSLRprfXod6rh",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              }
+            ],
+            "data": "8iPGiVLh8rYBAADh9QUAAAAAAA=="
+          }
+        ]
         """;
 
-    final var marinadeMappingJson = """
-        {
-          "program_id": "MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD",
-          "instructions": [
-            {
-              "src_ix_name": "deposit",
-              "src_discriminator": [
-                242,
-                35,
-                198,
-                137,
-                82,
-                225,
-                242,
-                182
-              ],
-              "dst_ix_name": "marinade_deposit",
-              "dst_discriminator": [
-                62,
-                236,
-                248,
-                28,
-                222,
-                232,
-                182,
-                73
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_state",
-                  "index": 0,
-                  "writable": false,
-                  "signer": false
-                },
-                {
-                  "name": "glam_vault",
-                  "index": 1,
-                  "writable": true,
-                  "signer": false
-                },
-                {
-                  "name": "glam_signer",
-                  "index": 2,
-                  "writable": true,
-                  "signer": true
-                },
-                {
-                  "name": "cpi_program",
-                  "index": 3,
-                  "writable": false,
-                  "signer": false
-                }
-              ],
-              "static_accounts": [],
-              "index_map": [
-                4,
-                5,
-                6,
-                7,
-                8,
-                9,
-                -1,
-                10,
-                11,
-                12,
-                13
-              ]
-            },
-            {
-              "src_ix_name": "deposit_stake_account",
-              "src_discriminator": [
-                110,
-                130,
-                115,
-                41,
-                164,
-                102,
-                2,
-                59
-              ],
-              "dst_ix_name": "marinade_deposit_stake_account",
-              "dst_discriminator": [
-                141,
-                230,
-                58,
-                103,
-                56,
-                205,
-                159,
-                138
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_state",
-                  "index": 0,
-                  "writable": true,
-                  "signer": false
-                },
-                {
-                  "name": "glam_vault",
-                  "index": 1,
-                  "writable": true,
-                  "signer": false
-                },
-                {
-                  "name": "glam_signer",
-                  "index": 2,
-                  "writable": true,
-                  "signer": true
-                },
-                {
-                  "name": "cpi_program",
-                  "index": 3,
-                  "writable": false,
-                  "signer": false
-                }
-              ],
-              "static_accounts": [],
-              "index_map": [
-                4,
-                5,
-                6,
-                7,
-                -1,
-                8,
-                -1,
-                9,
-                10,
-                11,
-                12,
-                13,
-                14,
-                15,
-                16
-              ]
-            },
-            {
-              "src_ix_name": "liquid_unstake",
-              "src_discriminator": [
-                30,
-                30,
-                119,
-                240,
-                191,
-                227,
-                12,
-                16
-              ],
-              "dst_ix_name": "marinade_liquid_unstake",
-              "dst_discriminator": [
-                29,
-                146,
-                34,
-                21,
-                26,
-                68,
-                141,
-                161
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_state",
-                  "index": 0,
-                  "writable": false,
-                  "signer": false
-                },
-                {
-                  "name": "glam_vault",
-                  "index": 1,
-                  "writable": true,
-                  "signer": false
-                },
-                {
-                  "name": "glam_signer",
-                  "index": 2,
-                  "writable": true,
-                  "signer": true
-                },
-                {
-                  "name": "cpi_program",
-                  "index": 3,
-                  "writable": false,
-                  "signer": false
-                }
-              ],
-              "static_accounts": [],
-              "index_map": [
-                4,
-                5,
-                6,
-                7,
-                8,
-                9,
-                -1,
-                -1,
-                10,
-                11
-              ]
-            },
-            {
-              "src_ix_name": "order_unstake",
-              "src_discriminator": [
-                97,
-                167,
-                144,
-                107,
-                117,
-                190,
-                128,
-                36
-              ],
-              "dst_ix_name": "marinade_order_unstake",
-              "dst_discriminator": [
-                202,
-                3,
-                33,
-                27,
-                183,
-                156,
-                57,
-                231
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_state",
-                  "index": 0,
-                  "writable": true,
-                  "signer": false
-                },
-                {
-                  "name": "glam_vault",
-                  "index": 1,
-                  "writable": true,
-                  "signer": false
-                },
-                {
-                  "name": "glam_signer",
-                  "index": 2,
-                  "writable": true,
-                  "signer": true
-                },
-                {
-                  "name": "cpi_program",
-                  "index": 3,
-                  "writable": false,
-                  "signer": false
-                }
-              ],
-              "static_accounts": [],
-              "index_map": [
-                4,
-                5,
-                6,
-                -1,
-                7,
-                8,
-                9,
-                10
-              ]
-            },
-            {
-              "src_ix_name": "claim",
-              "src_discriminator": [
-                62,
-                198,
-                214,
-                193,
-                213,
-                159,
-                108,
-                210
-              ],
-              "dst_ix_name": "marinade_claim",
-              "dst_discriminator": [
-                54,
-                44,
-                48,
-                204,
-                218,
-                141,
-                36,
-                5
-              ],
-              "dynamic_accounts": [
-                {
-                  "name": "glam_state",
-                  "index": 0,
-                  "writable": true,
-                  "signer": false
-                },
-                {
-                  "name": "glam_vault",
-                  "index": 1,
-                  "writable": true,
-                  "signer": false
-                },
-                {
-                  "name": "glam_signer",
-                  "index": 2,
-                  "writable": true,
-                  "signer": true
-                },
-                {
-                  "name": "cpi_program",
-                  "index": 3,
-                  "writable": false,
-                  "signer": false
-                }
-              ],
-              "static_accounts": [],
-              "index_map": [
-                4,
-                5,
-                6,
-                -1,
-                7,
-                8
-              ]
-            }
-          ]
-        }""";
+    final var mappedIxData = """
+        [
+          {
+            "programId": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+            "accounts": [
+              {
+                "publicKey": "AZpNg57C34kSTvFGVdgJuZ7sYvDTU3EGPNwNhQGqNXkD",
+                "feePayer": false,
+                "signer": true,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "GmWA1scwdESnC7PxitTJ8nNkYL4qf5JkRskc8hZ7ZFwE",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "4Uug1zHGvkYFuTGvS34Q5MnP7Bf36paXjtU6REUZnMhd",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "So11111111111111111111111111111111111111112",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "11111111111111111111111111111111",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              }
+            ],
+            "data": "AQ=="
+          },
+          {
+            "programId": "GLAMbTqav9N9witRjswJ8enwp9vv5G8bsSJ2kPJ4rcyc",
+            "accounts": [
+              {
+                "publicKey": "5X1AWem3eTtXRFFh9PMSPZmZfcdExXHD25cJXnvxrzTy",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "4Uug1zHGvkYFuTGvS34Q5MnP7Bf36paXjtU6REUZnMhd",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "AZpNg57C34kSTvFGVdgJuZ7sYvDTU3EGPNwNhQGqNXkD",
+                "feePayer": true,
+                "signer": true,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "11111111111111111111111111111111",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "GmWA1scwdESnC7PxitTJ8nNkYL4qf5JkRskc8hZ7ZFwE",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              }
+            ],
+            "data": "p6TDm9uYv+YA4fUFAAAAAA=="
+          },
+          {
+            "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+            "accounts": [
+              {
+                "publicKey": "GmWA1scwdESnC7PxitTJ8nNkYL4qf5JkRskc8hZ7ZFwE",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              }
+            ],
+            "data": "EQ=="
+          },
+          {
+            "programId": "GLAMbTqav9N9witRjswJ8enwp9vv5G8bsSJ2kPJ4rcyc",
+            "accounts": [
+              {
+                "publicKey": "5X1AWem3eTtXRFFh9PMSPZmZfcdExXHD25cJXnvxrzTy",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "4Uug1zHGvkYFuTGvS34Q5MnP7Bf36paXjtU6REUZnMhd",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "AZpNg57C34kSTvFGVdgJuZ7sYvDTU3EGPNwNhQGqNXkD",
+                "feePayer": true,
+                "signer": true,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "5zpq7DvB6UdFFvpmBPspGPNfUGoBRRCE2HHg5u3gxcsN",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "CTESGrMN2o91gtyaawyuHrGPbpjuyF1AcGqQF638wWf9",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "6kDHCuUZMmNarhbWjGNekn9G1UgT4yJHh39pwCiAY8Ff",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "DfYCNezifxAEsQbAJ1b3j6PX3JVBe8fu11KBhxsbw5d2",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "GmWA1scwdESnC7PxitTJ8nNkYL4qf5JkRskc8hZ7ZFwE",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              },
+              {
+                "publicKey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "3m6i4RFWEDw2Ft4tFHPJtYgmpPe21k56M3FHeWYrgGBz",
+                "feePayer": false,
+                "signer": false,
+                "writable": false,
+                "invoked": false
+              },
+              {
+                "publicKey": "3x85u7SWkmmr7YQGYhtjARgxwegTLJgkSLRprfXod6rh",
+                "feePayer": false,
+                "signer": false,
+                "writable": true,
+                "invoked": false
+              }
+            ],
+            "data": "/D/6yWI3ggwBAADh9QUAAAAAAA=="
+          }
+        ]
+        """;
 
+    final var solanaAccounts = SolanaAccounts.MAIN_NET;
+    final var driftProgram = PublicKey.fromBase58Encoded("dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH");
 
+    final var srcInstructions = parseInstructions(srcIxData);
+    assertEquals(4, srcInstructions.size());
+
+    var createTokenAccountIx = srcInstructions.getFirst();
+    assertEquals(solanaAccounts.associatedTokenAccountProgram(), createTokenAccountIx.programId().publicKey());
+    // CreateIdempotent
+    assertEquals(1, createTokenAccountIx.data()[0]);
+
+    var systemTransferIx = srcInstructions.get(1);
+    assertEquals(solanaAccounts.systemProgram(), systemTransferIx.programId().publicKey());
+    // Transfer
+    assertEquals(2, ByteUtil.getInt32LE(systemTransferIx.data(), 0));
+
+    var syncNativeIx = srcInstructions.get(2);
+    assertEquals(solanaAccounts.tokenProgram(), syncNativeIx.programId().publicKey());
+    // SyncNative
+    assertEquals(17, syncNativeIx.data()[0]);
+
+    var depositIx = srcInstructions.getLast();
+    assertEquals(driftProgram, depositIx.programId().publicKey());
+
+    final var stateAccount = PublicKey.fromBase58Encoded("5X1AWem3eTtXRFFh9PMSPZmZfcdExXHD25cJXnvxrzTy");
+    final var vaultAccount = PublicKey.fromBase58Encoded("4Uug1zHGvkYFuTGvS34Q5MnP7Bf36paXjtU6REUZnMhd");
+    final var vaultAccounts = GlamVaultAccounts.createAccounts(stateAccount, vaultAccount);
+    final var feePayer = AccountMeta.createFeePayer(PublicKey.fromBase58Encoded("AZpNg57C34kSTvFGVdgJuZ7sYvDTU3EGPNwNhQGqNXkD"));
+
+    final var expectedInstructions = parseInstructions(mappedIxData);
+    assertEquals(4, expectedInstructions.size());
+    // No mapping
+    assertEquals(createTokenAccountIx, expectedInstructions.getFirst());
+    assertEquals(syncNativeIx, srcInstructions.get(2));
+
+    final var mappedInstructions = txMapper.mapInstructions(feePayer, vaultAccounts, srcInstructions);
+    assertEquals(4, mappedInstructions.length);
+    // No mapping
+    assertEquals(createTokenAccountIx, mappedInstructions[0]);
+    assertEquals(syncNativeIx, mappedInstructions[2]);
+
+    final var mappedTransferIx = mappedInstructions[1];
+    validateMappedIx(
+        systemTransferIx, Discriminator.toDiscriminator(2, 0, 0, 0),
+        mappedTransferIx, Discriminator.toDiscriminator(167, 164, 195, 155, 219, 152, 191, 230)
+    );
+
+    final var mappedDepositIx = mappedInstructions[3];
+    validateMappedIx(
+        depositIx, Discriminator.toDiscriminator(242, 35, 198, 137, 82, 225, 242, 182),
+        mappedDepositIx, Discriminator.toDiscriminator(252, 63, 250, 201, 98, 55, 130, 12)
+    );
+
+    assertEquals(expectedInstructions, Arrays.asList(mappedInstructions));
+  }
+
+  @Test
+  void testGlamMarinadeUnstake() {
     final var srcIxData = """
         [{
           "programId": "11111111111111111111111111111111",
@@ -1317,49 +753,33 @@ final class GlamIxTests {
         ]
         """;
 
-
-    final var invokedProgram = PublicKey.fromBase58Encoded("GLAMbTqav9N9witRjswJ8enwp9vv5G8bsSJ2kPJ4rcyc");
-    final var systemProgramProxies = createProxies(invokedProgram, systemProgramMappingJson);
-    final var marinadeProgramProxies = createProxies(invokedProgram, marinadeMappingJson);
-    final var programProxies = HashMap.<PublicKey, ProgramProxy<GlamVaultAccounts>>newHashMap(systemProgramProxies.size() + marinadeProgramProxies.size());
-    for (final var proxy : systemProgramProxies) {
-      programProxies.put(proxy.cpiProgram(), proxy);
-    }
-    for (final var proxy : marinadeProgramProxies) {
-      programProxies.put(proxy.cpiProgram(), proxy);
-    }
-    final var txMapper = TransactionMapper.createMapper(programProxies);
-
     final var srcInstructions = parseInstructions(srcIxData);
     assertEquals(2, srcInstructions.size());
-    var createTicketIx = srcInstructions.getFirst();
+    final var createTicketIx = srcInstructions.getFirst();
     final var marinadeProgram = PublicKey.fromBase58Encoded("MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD");
-    var unstakeIx = srcInstructions.getLast();
+    final var unstakeIx = srcInstructions.getLast();
     assertEquals(marinadeProgram, unstakeIx.programId().publicKey());
 
     final var stateAccount = PublicKey.fromBase58Encoded("C8QQdekKRFRt5u78vo3YQcZTLWB5WkPhzpkwsKwjnNTo");
     final var vaultAccount = PublicKey.fromBase58Encoded("9AmBGCiDdiHSA7mspgFa6pwZ1PTfBj7DhF6nudpiXmNN");
-    final var vaultAccounts = new GlamVaultAccounts(
-        AccountMeta.createRead(stateAccount),
-        AccountMeta.createWrite(stateAccount),
-        AccountMeta.createRead(vaultAccount),
-        AccountMeta.createWrite(vaultAccount)
-    );
+    final var vaultAccounts = GlamVaultAccounts.createAccounts(stateAccount, vaultAccount);
     final var feePayer = AccountMeta.createFeePayer(PublicKey.fromBase58Encoded("AZpNg57C34kSTvFGVdgJuZ7sYvDTU3EGPNwNhQGqNXkD"));
-
 
     final var expectedInstructions = parseInstructions(mappedIxData);
     assertEquals(2, expectedInstructions.size());
-    var mappedIx = expectedInstructions.getFirst();
-    assertEquals(createTicketIx, mappedIx);
+    // no mapping
+    assertEquals(createTicketIx, expectedInstructions.getFirst());
 
     final var mappedInstructions = txMapper.mapInstructions(feePayer, vaultAccounts, srcInstructions);
     assertEquals(2, mappedInstructions.length);
-    mappedIx = mappedInstructions[0];
-    assertEquals(createTicketIx, mappedIx);
+    // no mapping
+    assertEquals(createTicketIx, mappedInstructions[0]);
 
-    var mappedUnstakeIx = mappedInstructions[1];
-    assertEquals(invokedProgram, mappedUnstakeIx.programId().publicKey());
+    final var mappedUnstakeIx = mappedInstructions[1];
+    validateMappedIx(
+        unstakeIx, Discriminator.toDiscriminator(97, 167, 144, 107, 117, 190, 128, 36),
+        mappedUnstakeIx, Discriminator.toDiscriminator(202, 3, 33, 27, 183, 156, 57, 231)
+    );
 
     assertEquals(expectedInstructions, Arrays.asList(mappedInstructions));
   }

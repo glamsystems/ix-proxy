@@ -13,8 +13,9 @@ import java.util.function.Function;
 
 public interface TransactionMapper<A> extends IxMapper<A> {
 
-  static <A> TransactionMapper<A> createMapper(final Map<PublicKey, ProgramProxy<A>> programProxyMap) {
-    return new ProgramProxyMap<>(programProxyMap);
+  static <A> TransactionMapper<A> createMapper(final PublicKey invokedProxyProgram,
+                                               final Map<PublicKey, ProgramProxy<A>> programProxyMap) {
+    return new ProgramProxyMap<>(invokedProxyProgram, programProxyMap);
   }
 
   static <A> TransactionMapper<A> createMapper(final AccountMeta invokedProxyProgram,
@@ -25,8 +26,10 @@ public interface TransactionMapper<A> extends IxMapper<A> {
         dynamicAccountFactory,
         programMapConfigs
     );
-    return createMapper(programProxies);
+    return createMapper(invokedProxyProgram.publicKey(), programProxies);
   }
+
+  PublicKey invokedProxyProgram();
 
   Instruction[] mapInstructions(final AccountMeta feePayer,
                                 final A runtimeAccounts,
