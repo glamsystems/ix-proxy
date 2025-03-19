@@ -46,3 +46,5 @@ hs_err_pid*
 target/
 
 !gradle-wrapper.jar
+
+/glam

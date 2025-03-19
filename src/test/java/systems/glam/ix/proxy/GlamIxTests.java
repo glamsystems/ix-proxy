@@ -78,7 +78,7 @@ final class GlamIxTests {
 
   private static TransactionMapper<GlamVaultAccounts> createMapper() {
     final var programProxies = new HashMap<PublicKey, ProgramProxy<GlamVaultAccounts>>();
-    try (final var paths = Files.walk(Path.of(".mappings"), 1)) {
+    try (final var paths = Files.walk(Path.of("glam/remapping"), 1)) {
       paths
           .filter(Files::isRegularFile)
           .filter(Files::isReadable)
@@ -94,7 +94,7 @@ final class GlamIxTests {
 
   @Test
   void testPayerProxy() throws IOException {
-    final var mappingJson = Files.readAllBytes(Path.of(".mappings/ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL.json"));
+    final var mappingJson = Files.readAllBytes(Path.of("glam/remapping/ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL.json"));
 
     final var programProxies = createProxies(mappingJson);
     assertEquals(1, programProxies.size());
@@ -111,7 +111,7 @@ final class GlamIxTests {
 
   @Test
   void testGlamDriftRemapping() throws IOException {
-    final var mappingJson = Files.readAllBytes(Path.of(".mappings/dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH.json"));
+    final var mappingJson = Files.readAllBytes(Path.of("glam/remapping/drift.json"));
 
     final var programProxies = createProxies(mappingJson);
     assertEquals(1, programProxies.size());
