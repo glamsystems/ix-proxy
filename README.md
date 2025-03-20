@@ -73,7 +73,7 @@ try (final var paths = Files.walk(mappingFileDirectory, 1)) {
           indexedAccountMetaCache
       ));
   
-  var txMapper = TransactionMapper.createMapper(INVOKED_PROGRAM, programProxies);
+  var txMapper = TransactionMapper.createMapper(invokedProxyProgram, programProxies);
 }
 ```
 
@@ -165,11 +165,11 @@ from the destination proxy program.  More example configurations can be found in
 
 ### **src_discriminator**
 
-The instruction discriminator of the original instruction.
+The discriminator of the original instruction.
 
 ### **dst_discriminator**
 
-The instruction discriminator of the proxy instruction.
+The discriminator of the proxy instruction.
 
 ### **dynamic_accounts**
 
