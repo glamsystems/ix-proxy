@@ -1,9 +1,103 @@
 # ixProxy
 
-Facilitates the re-mapping of instructions from one program to another proxy program. The primary use case to add
-additional safety checks in the proxy program before forwarding the request to the original program.
+Facilitates the re-mapping of instructions from one program to another proxy program. The primary use case is to add
+additional safety checks in the proxy program before and after forwarding the request to the original program.
 
-## Configuration
+## [Transaction Mapper](https://github.com/glamsystems/ix-proxy/blob/main/src/main/java/systems/glam/ix/proxy/TransactionMapper.java)
+
+The transaction mapper can be used to map a list of instructions or entire transactions.
+
+### Example Construction
+
+A dynamic account factory is needed from the user to provide the functions for wiring runtime accounts.
+
+This example uses a simple version that could be used for the GLAM proxy program.
+
+```java
+record GlamVaultAccounts(AccountMeta readGlamState,
+                         AccountMeta writeGlamState,
+                         AccountMeta readGlamVault,
+                         AccountMeta writeGlamVault) {
+
+  static GlamVaultAccounts createAccounts(final PublicKey stateAccount, final PublicKey vaultAccount) {
+    return new GlamVaultAccounts(
+        AccountMeta.createRead(stateAccount),
+        AccountMeta.createWrite(stateAccount),
+        AccountMeta.createRead(vaultAccount),
+        AccountMeta.createWrite(vaultAccount)
+    );
+  }
+}
+
+Function<DynamicAccountConfig, DynamicAccount<GlamVaultAccounts>> dynamicAccountFactory = accountConfig -> {
+  final int index = accountConfig.index();
+  final boolean w = accountConfig.writable();
+  return switch (accountConfig.name()) {
+    case "glam_state" -> (mappedAccounts, _, _, vaultAccounts) -> mappedAccounts[index] = w
+        ? vaultAccounts.writeGlamState() : vaultAccounts.readGlamState();
+    case "glam_vault" -> (mappedAccounts, _, _, vaultAccounts) -> mappedAccounts[index] = w
+        ? vaultAccounts.writeGlamVault() : vaultAccounts.readGlamVault();
+    case "glam_signer" -> accountConfig.createFeePayerAccount();
+    case "cpi_program" -> accountConfig.createReadCpiProgram();
+    default -> throw new IllegalStateException("Unknown dynamic account type: " + accountConfig.name());
+  };
+```
+
+The following iterates over each mapping configuration file in a given directory.
+Constructs the corresponding program proxy for each and puts them in a map with the key being the source CPI program. 
+Then finally the TransactionMapper is constructed. 
+
+```java
+// Used to de-duplicate AccountMeta objects.
+var accountMetaCache = new HashMap<AccountMeta, AccountMeta>(256);
+var indexedAccountMetaCache = new HashMap<IndexedAccountMeta, IndexedAccountMeta>(256);
+
+var proxyProgram = PublicKey.fromBase58Encoded("");
+var invokedProxyProgram = AccountMeta.createInvoked(proxyProgram);
+Function<DynamicAccountConfig, DynamicAccount<A>> dynamicAccountFactory = null; // See example above.
+
+var programKeyToProgramProxyMap = new HashMap<PublicKey, ProgramProxy<A>>();
+
+var mappingFileDirectory = Path.of("path/to/mapping/config/files");
+try (final var paths = Files.walk(mappingFileDirectory, 1)) {
+  paths
+      .filter(Files::isRegularFile)
+      .filter(Files::isReadable)
+      .filter(f -> f.getFileName().toString().endsWith(".json"))
+      .forEach(mappingFile -> ProgramMapConfig.createProxies(
+          mappingFile,
+          invokedProxyProgram,
+          programKeyToProgramProxyMap,
+          dynamicAccountFactory,
+          accountMetaCache,
+          indexedAccountMetaCache
+      ));
+  
+  var txMapper = TransactionMapper.createMapper(INVOKED_PROGRAM, programProxies);
+}
+```
+
+### Example Usage
+
+```java 
+// Given some instructions or a transaction from any source.
+var sourceInstructions = List.<Instruction>of();
+var feePayer = AccountMeta.createFeePayer(PublicKey.fromBase58Encoded(""));
+A runtimeAccounts = null; // See example above.
+
+Instruction[] mappedInstructions = txMapper.mapInstructions(
+    feePayer, 
+    runtimeAccounts,
+    sourceInstructions
+);
+```
+
+## Program Mapping Configuration Files
+
+Mapping files define the necessary information for translating a source program instruction that will be called via CPI
+from the destination proxy program.  More example configurations can be found in the [glam-sdk repository](https://github.com/glamsystems/glam-sdk/tree/main/remapping)
+
+### Example Configuration
 
 ```json
 {
@@ -89,64 +183,3 @@ Account Meta information for accounts which are always the same given a Solana c
 
 Defines the parameter index for the destination instruction. If the account has been removed or replaced use a negative
 number.
-
-## Usage
-
-### Construct IxProxy Map
-
-Parse a `ProgramMapConfig` and construct an IxProxy for each instruction. With the `ixProxyMap`, IxProxy's can be
-retrieved given the source instruction discriminator and then used to translate the instruction to the proxy program.
-
-```java
-var mappingJson = "";
-var ji = JsonIterator.parse(mappingJson);
-
-var programMapConfig = ProgramMapConfig.parseConfig(ji);
-var program = programMapConfig.program();
-var programAccountMeta = AccountMeta.createRead(program);
-
-var ixMapConfigs = programMapConfig.ixMapConfigs();
-
-record GlamVaultAccounts(AccountMeta readGlamState,
-                         AccountMeta writeGlamState,
-                         AccountMeta readGlamVault,
-                         AccountMeta writeGlamVault) {
-
-}
-
-
-var ixProxyMap = HashMap.<Discriminator, IxProxy<GlamVaultAccounts>>newHashMap(ixMapConfigs.size());
-
-for (var ixMapConfig : ixMapConfigs) {
-  Function<DynamicAccountConfig, DynamicAccount<GlamVaultAccounts>> dynamicAccountFactory = accountConfig -> {
-    int index = accountConfig.index();
-    boolean w = accountConfig.writable();
-    return switch (accountConfig.name()) {
-      case "glam_state" -> (mappedAccounts, _, vaultAccounts) -> mappedAccounts[index] = w
-          ? vaultAccounts.writeGlamState() : vaultAccounts.readGlamState();
-      case "glam_vault" -> (mappedAccounts, _, vaultAccounts) -> mappedAccounts[index] = w
-          ? vaultAccounts.writeGlamVault() : vaultAccounts.readGlamVault();
-      case "glam_signer" -> accountConfig.createFeePayerAccount();
-      case "cpi_program" -> accountConfig.createDynamicAccount(programAccountMeta);
-      default -> throw new IllegalStateException("Unknown dynamic account type: " + accountConfig.name());
-    };
-  };
-
-  var srcDiscriminator = ixMapConfig.srcDiscriminator();
-  var ixProxy = ixMapConfig.createProxy(dynamicAccountFactory);
-  ixProxyMap.put(srcDiscriminator, ixProxy);
-}
-```
-
-### Translate Source Program Instruction
-
-```java
-AccountMeta feePayer = AccountMeta.createFeePayer(PublicKey.fromBase58Encoded(""));
-
-PublicKey glamStateAccount = PublicKey.fromBase58Encoded("");
-GlamVaultAccounts vaultAccounts = GlamVaultAccounts.create(glamStateAccount);
-
-Instruction sourceIx = null;
-IxProxyRecord<GlamVaultAccounts> ixProxy = ixProxyMap.g;
-Instruction mappedIx = ixProxy.mapInstruction(feePayer, vaultAccounts, sourceIx);
-```

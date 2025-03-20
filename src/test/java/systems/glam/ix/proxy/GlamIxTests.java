@@ -39,6 +39,65 @@ final class GlamIxTests {
     }
   }
 
+  public static <A> TransactionMapper<A> createMapper(final Path mappingFileDirectory,
+                                                      final AccountMeta invokedProxyProgram,
+                                                      final Map<PublicKey, ProgramProxy<A>> programProxiesOutput,
+                                                      final Function<DynamicAccountConfig, DynamicAccount<A>> dynamicAccountFactory) {
+    // Used to de-duplicate AccountMeta objects.
+    final var accountMetaCache = new HashMap<AccountMeta, AccountMeta>(256);
+    final var indexedAccountMetaCache = new HashMap<IndexedAccountMeta, IndexedAccountMeta>(256);
+
+    try (final var paths = Files.walk(mappingFileDirectory, 1)) {
+      paths
+          .filter(Files::isRegularFile)
+          .filter(Files::isReadable)
+          .filter(f -> f.getFileName().toString().endsWith(".json"))
+          .forEach(mappingFile -> ProgramMapConfig.createProxies(
+              mappingFile,
+              invokedProxyProgram,
+              programProxiesOutput,
+              dynamicAccountFactory,
+              accountMetaCache,
+              indexedAccountMetaCache
+          ));
+      return TransactionMapper.createMapper(INVOKED_PROGRAM, programProxiesOutput);
+    } catch (final IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  public static <A> TransactionMapper<A> createMapper(final Path mappingFileDirectory,
+                                                      final AccountMeta invokedProxyProgram,
+                                                      final Function<DynamicAccountConfig, DynamicAccount<A>> dynamicAccountFactory) {
+    return createMapper(
+        mappingFileDirectory,
+        invokedProxyProgram,
+        new HashMap<>(),
+        dynamicAccountFactory
+    );
+  }
+
+  private static final Function<DynamicAccountConfig, DynamicAccount<GlamVaultAccounts>> DYNAMIC_ACCOUNT_FACTORY = accountConfig -> {
+    final int index = accountConfig.index();
+    final boolean w = accountConfig.writable();
+    return switch (accountConfig.name()) {
+      case "glam_state" -> (mappedAccounts, _, _, vaultAccounts) -> mappedAccounts[index] = w
+          ? vaultAccounts.writeGlamState() : vaultAccounts.readGlamState();
+      case "glam_vault" -> (mappedAccounts, _, _, vaultAccounts) -> mappedAccounts[index] = w
+          ? vaultAccounts.writeGlamVault() : vaultAccounts.readGlamVault();
+      case "glam_signer" -> accountConfig.createFeePayerAccount();
+      case "cpi_program" -> accountConfig.createReadCpiProgram();
+      default -> throw new IllegalStateException("Unknown dynamic account type: " + accountConfig.name());
+    };
+  };
+
+  private static final TransactionMapper<GlamVaultAccounts> txMapper = createMapper(
+      Path.of("glam/remapping"),
+      AccountMeta.createInvoked(GlamIxTests.INVOKED_PROGRAM),
+      new HashMap<>(),
+      DYNAMIC_ACCOUNT_FACTORY
+  );
+
   private static Collection<ProgramProxy<GlamVaultAccounts>> createProxies(final byte[] mappingJson) {
     final var ji = JsonIterator.parse(mappingJson);
 
@@ -47,50 +106,8 @@ final class GlamIxTests {
 
     final var programMapConfig = ProgramMapConfig.parseConfig(accountMetaCache, indexedAccountMetaCache, ji);
 
-    final Function<DynamicAccountConfig, DynamicAccount<GlamVaultAccounts>> dynamicAccountFactory = accountConfig -> {
-      final int index = accountConfig.index();
-      final boolean w = accountConfig.writable();
-      return switch (accountConfig.name()) {
-        case "glam_state" -> (mappedAccounts, _, _, vaultAccounts) -> mappedAccounts[index] = w
-            ? vaultAccounts.writeGlamState() : vaultAccounts.readGlamState();
-        case "glam_vault" -> (mappedAccounts, _, _, vaultAccounts) -> mappedAccounts[index] = w
-            ? vaultAccounts.writeGlamVault() : vaultAccounts.readGlamVault();
-        case "glam_signer" -> accountConfig.createFeePayerAccount();
-        case "cpi_program" -> accountConfig.createReadCpiProgram();
-        default -> throw new IllegalStateException("Unknown dynamic account type: " + accountConfig.name());
-      };
-    };
-    return programMapConfig.createProgramProxies(AccountMeta.createInvoked(GlamIxTests.INVOKED_PROGRAM), dynamicAccountFactory);
+    return programMapConfig.createProgramProxies(AccountMeta.createInvoked(GlamIxTests.INVOKED_PROGRAM), DYNAMIC_ACCOUNT_FACTORY);
   }
-
-  private static void createProxies(final Path mappingFile,
-                                    final Map<PublicKey, ProgramProxy<GlamVaultAccounts>> programProxies) {
-    try {
-      final var mappingJson = Files.readAllBytes(mappingFile);
-      final var systemProgramProxies = createProxies(mappingJson);
-      for (final var proxy : systemProgramProxies) {
-        programProxies.put(proxy.cpiProgram(), proxy);
-      }
-    } catch (final IOException e) {
-      throw new UncheckedIOException(e);
-    }
-  }
-
-  private static TransactionMapper<GlamVaultAccounts> createMapper() {
-    final var programProxies = new HashMap<PublicKey, ProgramProxy<GlamVaultAccounts>>();
-    try (final var paths = Files.walk(Path.of("glam/remapping"), 1)) {
-      paths
-          .filter(Files::isRegularFile)
-          .filter(Files::isReadable)
-          .filter(f -> f.getFileName().toString().endsWith(".json"))
-          .forEach(mappingFile -> createProxies(mappingFile, programProxies));
-      return TransactionMapper.createMapper(INVOKED_PROGRAM, programProxies);
-    } catch (final IOException e) {
-      throw new UncheckedIOException(e);
-    }
-  }
-
-  private static final TransactionMapper<GlamVaultAccounts> txMapper = createMapper();
 
   @Test
   void testPayerProxy() throws IOException {

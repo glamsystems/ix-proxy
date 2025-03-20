@@ -8,6 +8,10 @@ import systems.comodal.jsoniter.FieldBufferPredicate;
 import systems.comodal.jsoniter.JsonIterator;
 import systems.comodal.jsoniter.ValueType;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Function;
 
@@ -55,6 +59,25 @@ public record ProgramMapConfig(Collection<AccountMeta> programs,
       }
     }
     return proxies;
+  }
+
+  public static <A> void createProxies(final Path mappingFile,
+                                       final AccountMeta invokedProxyProgram,
+                                       final Map<PublicKey, ProgramProxy<A>> programProxiesOutput,
+                                       final Function<DynamicAccountConfig, DynamicAccount<A>> dynamicAccountFactory,
+                                       final Map<AccountMeta, AccountMeta> accountMetaCache,
+                                       final Map<IndexedAccountMeta, IndexedAccountMeta> indexedAccountMetaCache) {
+    try {
+      final var mappingJson = Files.readAllBytes(mappingFile);
+      final var ji = JsonIterator.parse(mappingJson);
+      final var programMapConfig = ProgramMapConfig.parseConfig(accountMetaCache, indexedAccountMetaCache, ji);
+      final var programProxyCollection = programMapConfig.createProgramProxies(invokedProxyProgram, dynamicAccountFactory);
+      for (final var proxy : programProxyCollection) {
+        programProxiesOutput.put(proxy.cpiProgram(), proxy);
+      }
+    } catch (final IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   static CharBufferFunction<PublicKey> PARSE_BASE58_PUBLIC_KEY = PublicKey::fromBase58Encoded;
