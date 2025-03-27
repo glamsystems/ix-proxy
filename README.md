@@ -183,3 +183,8 @@ Account Meta information for accounts which are always the same given a Solana c
 
 Defines the parameter index for the destination instruction. If the account has been removed or replaced use a negative
 number.
+
+## Build & Tests
+
+Mapping configuration files from the [glam-sdk repository](https://github.com/glamsystems/glam-sdk/tree/main/remapping) 
+are needed to run the tests.  Run [./downloadMappings.sh](downloadMappings.sh) to pull only those files into this project.

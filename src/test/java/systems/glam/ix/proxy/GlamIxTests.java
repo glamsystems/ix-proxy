@@ -128,7 +128,7 @@ final class GlamIxTests {
 
   @Test
   void testGlamDriftRemapping() throws IOException {
-    final var mappingJson = Files.readAllBytes(Path.of("glam/remapping/drift.json"));
+    final var mappingJson = Files.readAllBytes(Path.of("glam/remapping/dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH.json"));
 
     final var programProxies = createProxies(mappingJson);
     assertEquals(1, programProxies.size());
