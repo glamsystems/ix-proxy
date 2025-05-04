@@ -188,3 +188,9 @@ number.
 
 Mapping configuration files from the [glam-sdk repository](https://github.com/glamsystems/glam-sdk/tree/main/remapping) 
 are needed to run the tests.  Run [./downloadMappings.sh](downloadMappings.sh) to pull only those files into this project.
+
+### Sync Re-mapping JSON Files
+
+```shell
+./syncMappings.sh
+```

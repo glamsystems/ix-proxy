@@ -3,8 +3,8 @@ ext {
   VCS_URL = 'https://github.com/glamsystems/ix-proxy'
 }
 
-apply plugin: 'java-library'
-apply plugin: 'maven-publish'
+apply(plugin: 'java-library')
+apply(plugin: 'maven-publish')
 
 project.group = 'systems.glam'
 project.version = "$VERSION"
