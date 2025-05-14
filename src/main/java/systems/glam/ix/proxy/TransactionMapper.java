@@ -31,6 +31,8 @@ public interface TransactionMapper<A> extends IxMapper<A> {
 
   PublicKey invokedProxyProgram();
 
+  ProgramProxy<A> programProxy(final PublicKey programId);
+
   Instruction[] mapInstructions(final AccountMeta feePayer,
                                 final A runtimeAccounts,
                                 final List<Instruction> instructions);

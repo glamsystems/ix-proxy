@@ -27,6 +27,11 @@ final class ProgramProxyMap<A> implements TransactionMapper<A> {
   }
 
   @Override
+  public ProgramProxy<A> programProxy(final PublicKey programId) {
+    return programProxyMap.get(programId);
+  }
+
+  @Override
   public Instruction mapInstruction(final AccountMeta feePayer,
                                     final A runtimeAccounts,
                                     final Instruction instruction) {

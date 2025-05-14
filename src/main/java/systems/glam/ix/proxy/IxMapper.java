@@ -5,6 +5,7 @@ import software.sava.core.accounts.meta.AccountMeta;
 import software.sava.core.tx.Instruction;
 
 public interface IxMapper<A> {
+
   Instruction mapInstruction(final AccountMeta feePayer,
                              final A runtimeAccounts,
                              final Instruction instruction);
