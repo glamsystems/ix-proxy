@@ -3,7 +3,7 @@
 Facilitates the re-mapping of instructions from one program to another proxy program. The primary use case is to add
 additional safety checks in the proxy program before and after forwarding the request to the original program.
 
-## [Transaction Mapper](https://github.com/glamsystems/ix-proxy/blob/main/src/main/java/systems/glam/ix/proxy/TransactionMapper.java)
+## [Transaction Mapper](https://github.com/glamsystems/ix-proxy/blob/main/ix-proxy/src/main/java/systems/glam/ix/proxy/TransactionMapper.java)
 
 The transaction mapper can be used to map a list of instructions or entire transactions.
 
