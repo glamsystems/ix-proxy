@@ -1,4 +1,4 @@
-# ixProxy
+# ixProxy [![Gradle Check](https://github.com/glamsystems/ix-proxy/actions/workflows/build.yml/badge.svg)](https://github.com/glamsystems/ix-proxy/actions/workflows/build.yml) [![Publish Release](https://github.com/glamsystems/ix-proxy/actions/workflows/publish.yml/badge.svg)](https://github.com/glamsystems/ix-proxy/actions/workflows/publish.yml)
 
 Facilitates the re-mapping of instructions from one program to another proxy program. The primary use case is to add
 additional safety checks in the proxy program before and after forwarding the request to the original program.

@@ -13,7 +13,7 @@ plugins {
   id("software.sava.build") version "0.1.21"
 }
 
-rootProject.name = "anchor-programs"
+rootProject.name = "ix-proxy"
 
 javaModules {
   directory(".") {
