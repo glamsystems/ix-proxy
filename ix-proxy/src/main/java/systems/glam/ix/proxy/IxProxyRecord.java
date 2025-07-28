@@ -51,8 +51,7 @@ final class IxProxyRecord<A> extends BaseIxProxy<A> {
       staticAccount.setAccount(mappedAccounts);
     }
 
-    int s = 0;
-    int m;
+    int s = 0, m;
     for (; s < indexes.length; ++s) {
       m = indexes[s];
       if (m >= 0) {
@@ -65,7 +64,6 @@ final class IxProxyRecord<A> extends BaseIxProxy<A> {
     for (; s < numAccounts; ++s, ++m) {
       mappedAccounts[m] = accounts.get(s);
     }
-
 
     final int cpiDataLength = instruction.len();
     final byte[] data = new byte[cpiDataLength + lengthDelta];
