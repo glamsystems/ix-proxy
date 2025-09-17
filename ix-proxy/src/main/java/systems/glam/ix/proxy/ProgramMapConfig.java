@@ -17,7 +17,8 @@ import java.util.function.Function;
 
 import static systems.comodal.jsoniter.JsonIterator.fieldEquals;
 
-public record ProgramMapConfig(Collection<AccountMeta> programs,
+public record ProgramMapConfig(AccountMeta invokedProxyProgram,
+                               Collection<AccountMeta> programs,
                                List<IxMapConfig> ixMapConfigs,
                                int discriminatorLength) {
 
@@ -25,8 +26,9 @@ public record ProgramMapConfig(Collection<AccountMeta> programs,
     return discriminatorLength > 0;
   }
 
-  public <A> Collection<ProgramProxy<A>> createProgramProxies(final AccountMeta invokedProxyProgram,
+  public <A> Collection<ProgramProxy<A>> createProgramProxies(final AccountMeta defaultInvokedProxyProgram,
                                                               final Function<DynamicAccountConfig, DynamicAccount<A>> dynamicAccountFactory) {
+    final var invokedProxyProgram = Objects.requireNonNullElse(this.invokedProxyProgram, defaultInvokedProxyProgram);
     if (fixedLengthDiscriminator()) {
       final var ixProxies = HashMap.<Discriminator, IxProxy<A>>newHashMap(ixMapConfigs.size());
       for (final var ixMapConfig : ixMapConfigs) {
@@ -48,12 +50,12 @@ public record ProgramMapConfig(Collection<AccountMeta> programs,
     }
   }
 
-  public static <A> Map<PublicKey, ProgramProxy<A>> createProgramProxies(final AccountMeta invokedProxyProgram,
+  public static <A> Map<PublicKey, ProgramProxy<A>> createProgramProxies(final AccountMeta defaultInvokedProxyProgram,
                                                                          final Function<DynamicAccountConfig, DynamicAccount<A>> dynamicAccountFactory,
                                                                          final List<ProgramMapConfig> programMapConfigs) {
     final var proxies = new HashMap<PublicKey, ProgramProxy<A>>(programMapConfigs.size());
     for (final var programMapConfig : programMapConfigs) {
-      final var programProxies = programMapConfig.createProgramProxies(invokedProxyProgram, dynamicAccountFactory);
+      final var programProxies = programMapConfig.createProgramProxies(defaultInvokedProxyProgram, dynamicAccountFactory);
       for (final var programProxy : programProxies) {
         proxies.put(programProxy.cpiProgram(), programProxy);
       }
@@ -62,7 +64,7 @@ public record ProgramMapConfig(Collection<AccountMeta> programs,
   }
 
   public static <A> void createProxies(final Path mappingFile,
-                                       final AccountMeta invokedProxyProgram,
+                                       final AccountMeta defaultInvokedProxyProgram,
                                        final Map<PublicKey, ProgramProxy<A>> programProxiesOutput,
                                        final Function<DynamicAccountConfig, DynamicAccount<A>> dynamicAccountFactory,
                                        final Map<AccountMeta, AccountMeta> accountMetaCache,
@@ -71,7 +73,7 @@ public record ProgramMapConfig(Collection<AccountMeta> programs,
       final var mappingJson = Files.readAllBytes(mappingFile);
       final var ji = JsonIterator.parse(mappingJson);
       final var programMapConfig = ProgramMapConfig.parseConfig(accountMetaCache, indexedAccountMetaCache, ji);
-      final var programProxyCollection = programMapConfig.createProgramProxies(invokedProxyProgram, dynamicAccountFactory);
+      final var programProxyCollection = programMapConfig.createProgramProxies(defaultInvokedProxyProgram, dynamicAccountFactory);
       for (final var proxy : programProxyCollection) {
         programProxiesOutput.put(proxy.cpiProgram(), proxy);
       }
@@ -95,6 +97,7 @@ public record ProgramMapConfig(Collection<AccountMeta> programs,
     private final Map<AccountMeta, AccountMeta> accountMetaCache;
     private final Map<IndexedAccountMeta, IndexedAccountMeta> indexedAccountMetaCache;
 
+    private PublicKey proxyProgram;
     private Collection<AccountMeta> programs;
     private List<IxMapConfig> ixMapConfigs;
 
@@ -105,17 +108,18 @@ public record ProgramMapConfig(Collection<AccountMeta> programs,
     }
 
     private ProgramMapConfig create() {
+      final var invokedProxyProgram = proxyProgram == null ? null : AccountMeta.createInvoked(proxyProgram);
       if (ixMapConfigs.isEmpty()) {
-        return new ProgramMapConfig(programs, ixMapConfigs, 0);
+        return new ProgramMapConfig(invokedProxyProgram, programs, ixMapConfigs, 0);
       } else {
         final var iterator = ixMapConfigs.iterator();
         final int discriminatorLength = iterator.next().cpiDiscriminator().length();
         while (iterator.hasNext()) {
           if (iterator.next().cpiDiscriminator().length() != discriminatorLength) {
-            return new ProgramMapConfig(programs, ixMapConfigs, -1);
+            return new ProgramMapConfig(invokedProxyProgram, programs, ixMapConfigs, -1);
           }
         }
-        return new ProgramMapConfig(programs, ixMapConfigs, discriminatorLength);
+        return new ProgramMapConfig(invokedProxyProgram, programs, ixMapConfigs, discriminatorLength);
       }
     }
 
@@ -131,6 +135,8 @@ public record ProgramMapConfig(Collection<AccountMeta> programs,
         } else {
           this.programs = List.of(AccountMeta.createRead(ji.applyChars(PARSE_BASE58_PUBLIC_KEY)));
         }
+      } else if (fieldEquals("proxy_program_id", buf, offset, len)) {
+        this.proxyProgram = ji.applyChars(PARSE_BASE58_PUBLIC_KEY);
       } else if (fieldEquals("instructions", buf, offset, len)) {
         final var ixMapConfigs = new ArrayList<IxMapConfig>();
         while (ji.readArray()) {
